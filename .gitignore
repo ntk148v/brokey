@@ -67,3 +67,6 @@ docs/superpowers
 # Added by cargo
 
 /target
+
+# Python
+__pycache__/
