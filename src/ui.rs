@@ -483,4 +483,21 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
         terminal.draw(|f| draw(f, &a)).unwrap();
     }
+
+    #[test]
+    fn renders_all_builtin_profiles() {
+        let (builtins, warnings) = crate::profiles::builtins();
+        assert!(warnings.is_empty(), "{warnings:?}");
+        let pairs: Vec<(String, String)> = builtins
+            .iter()
+            .map(|p| (p.id.clone(), p.name.clone()))
+            .collect();
+        let a = new(pairs, &Config::default());
+        let backend = TestBackend::new(60, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal.draw(|f| draw(f, &a)).unwrap();
+        let text = buffer_text(terminal.backend().buffer());
+        assert!(text.contains("Cherry MX Black (ABS)"));
+        assert!(text.contains("Turquoise Tealios"));
+    }
 }
