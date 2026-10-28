@@ -1,88 +1,120 @@
-use crate::audio::decode;
-use crate::audio::Clip;
+use crate::pack::{LoadedPack, Manifest};
 use std::fs;
 use std::path::Path;
+
+#[derive(Clone)]
+pub enum ProfileSource {
+    Builtin {
+        sprite: &'static [u8],
+        manifest: &'static [u8],
+    },
+    Custom {
+        press: Vec<u8>,
+        space: Option<Vec<u8>>,
+    },
+}
 
 #[derive(Clone)]
 pub struct Profile {
     pub id: String,
     pub name: String,
-    pub press: Clip,
-    pub space: Option<Clip>,
+    pub source: ProfileSource,
 }
 
-fn builtin(id: &str, name: &str, press: &[u8], space: &[u8]) -> Profile {
-    Profile {
+fn builtin(
+    id: &str,
+    name: &str,
+    sprite: &'static [u8],
+    manifest: &'static [u8],
+) -> Result<Profile, String> {
+    Manifest::parse(manifest)
+        .map_err(|e| format!("Built-in profile '{id}' has an invalid manifest: {e}"))?;
+    Ok(Profile {
         id: id.to_string(),
         name: name.to_string(),
-        press: decode(press.to_vec()).expect("built-in press sound must decode"),
-        space: Some(decode(space.to_vec()).expect("built-in space sound must decode")),
-    }
+        source: ProfileSource::Builtin { sprite, manifest },
+    })
 }
 
-pub fn builtins() -> Vec<Profile> {
-    vec![
-        builtin(
+pub fn builtins() -> (Vec<Profile>, Vec<String>) {
+    let specs: [(&str, &str, &'static [u8], &'static [u8]); 11] = [
+        (
             "mx-blue",
             "Cherry MX Blue",
-            include_bytes!("../assets/sounds/mx-blue/press.wav"),
-            include_bytes!("../assets/sounds/mx-blue/space.wav"),
+            include_bytes!("../assets/sounds/mx-blue/sound.flac"),
+            include_bytes!("../assets/sounds/mx-blue/config.json"),
         ),
-        builtin(
+        (
             "mx-red",
             "Cherry MX Red",
-            include_bytes!("../assets/sounds/mx-red/press.wav"),
-            include_bytes!("../assets/sounds/mx-red/space.wav"),
+            include_bytes!("../assets/sounds/mx-red/sound.flac"),
+            include_bytes!("../assets/sounds/mx-red/config.json"),
         ),
-        builtin(
+        (
             "mx-brown",
             "Cherry MX Brown",
-            include_bytes!("../assets/sounds/mx-brown/press.wav"),
-            include_bytes!("../assets/sounds/mx-brown/space.wav"),
+            include_bytes!("../assets/sounds/mx-brown/sound.flac"),
+            include_bytes!("../assets/sounds/mx-brown/config.json"),
         ),
-        builtin(
+        (
             "topre",
             "Topre",
-            include_bytes!("../assets/sounds/topre/press.wav"),
-            include_bytes!("../assets/sounds/topre/space.wav"),
+            include_bytes!("../assets/sounds/topre/sound.flac"),
+            include_bytes!("../assets/sounds/topre/config.json"),
         ),
-        builtin(
+        (
             "mx-black",
             "Cherry MX Black",
-            include_bytes!("../assets/sounds/mx-black/press.wav"),
-            include_bytes!("../assets/sounds/mx-black/space.wav"),
+            include_bytes!("../assets/sounds/mx-black/sound.flac"),
+            include_bytes!("../assets/sounds/mx-black/config.json"),
         ),
-        builtin(
+        (
             "holy-panda",
             "Holy Panda",
-            include_bytes!("../assets/sounds/holy-panda/press.wav"),
-            include_bytes!("../assets/sounds/holy-panda/space.wav"),
+            include_bytes!("../assets/sounds/holy-panda/sound.flac"),
+            include_bytes!("../assets/sounds/holy-panda/config.json"),
         ),
-        builtin(
+        (
             "nk-cream",
             "NK Cream",
-            include_bytes!("../assets/sounds/nk-cream/press.wav"),
-            include_bytes!("../assets/sounds/nk-cream/space.wav"),
+            include_bytes!("../assets/sounds/nk-cream/sound.flac"),
+            include_bytes!("../assets/sounds/nk-cream/config.json"),
         ),
-        builtin(
+        (
             "eg-oreo",
             "Everglide Oreo",
-            include_bytes!("../assets/sounds/eg-oreo/press.wav"),
-            include_bytes!("../assets/sounds/eg-oreo/space.wav"),
+            include_bytes!("../assets/sounds/eg-oreo/sound.flac"),
+            include_bytes!("../assets/sounds/eg-oreo/config.json"),
         ),
-        builtin(
+        (
             "eg-crystal-purple",
             "Everglide Crystal Purple",
-            include_bytes!("../assets/sounds/eg-crystal-purple/press.wav"),
-            include_bytes!("../assets/sounds/eg-crystal-purple/space.wav"),
+            include_bytes!("../assets/sounds/eg-crystal-purple/sound.flac"),
+            include_bytes!("../assets/sounds/eg-crystal-purple/config.json"),
         ),
-        builtin(
+        (
             "turquoise",
             "Turquoise Tealios",
-            include_bytes!("../assets/sounds/turquoise/press.wav"),
-            include_bytes!("../assets/sounds/turquoise/space.wav"),
+            include_bytes!("../assets/sounds/turquoise/sound.flac"),
+            include_bytes!("../assets/sounds/turquoise/config.json"),
         ),
-    ]
+        (
+            "mx-black-abs",
+            "Cherry MX Black (ABS)",
+            include_bytes!("../assets/sounds/mx-black-abs/sound.flac"),
+            include_bytes!("../assets/sounds/mx-black-abs/config.json"),
+        ),
+    ];
+
+    let mut profiles = Vec::with_capacity(specs.len());
+    let mut warnings = Vec::new();
+    for (id, name, sprite, manifest) in specs {
+        match builtin(id, name, sprite, manifest) {
+            Ok(profile) => profiles.push(profile),
+            Err(e) => warnings.push(e),
+        }
+    }
+    (profiles, warnings)
 }
 
 pub fn load_user(dir: &Path) -> (Vec<Profile>, Vec<String>) {
@@ -113,8 +145,7 @@ pub fn load_user(dir: &Path) -> (Vec<Profile>, Vec<String>) {
         if id.is_empty() {
             continue;
         }
-        // try to load pack
-        // find press
+
         let mut pack_entries: Vec<std::path::PathBuf> = Vec::new();
         if let Ok(prd) = fs::read_dir(&p) {
             for pe in prd.flatten() {
@@ -124,6 +155,7 @@ pub fn load_user(dir: &Path) -> (Vec<Profile>, Vec<String>) {
                 }
             }
         }
+
         let mut press_cands: Vec<std::path::PathBuf> = pack_entries
             .iter()
             .filter(|pp| pp.file_stem().and_then(|s| s.to_str()) == Some("press"))
@@ -144,35 +176,30 @@ pub fn load_user(dir: &Path) -> (Vec<Profile>, Vec<String>) {
                 continue;
             }
         };
-        let press = match decode(press_bytes) {
-            Ok(c) => c,
-            Err(e) => {
-                warnings.push(format!("Skipped sound pack '{}': {}", id, e));
-                continue;
-            }
-        };
-        // space optional
+
         let mut space_cands: Vec<std::path::PathBuf> = pack_entries
             .iter()
             .filter(|pp| pp.file_stem().and_then(|s| s.to_str()) == Some("space"))
             .cloned()
             .collect();
         space_cands.sort_by(|a, b| a.to_string_lossy().cmp(&b.to_string_lossy()));
-        let mut space_clip: Option<Clip> = None;
-        if let Some(sp) = space_cands.first() {
-            if let Ok(sb) = fs::read(sp) {
-                if let Ok(sc) = decode(sb) {
-                    space_clip = Some(sc);
-                }
-                // else skip space, no warning
-            }
-            // else skip space, no warning
+        let space_bytes = space_cands
+            .first()
+            .and_then(|sp| fs::read(sp).ok())
+            .filter(|b| LoadedPack::from_custom(b.clone(), None).is_ok());
+
+        if let Err(e) = LoadedPack::from_custom(press_bytes.clone(), space_bytes.clone()) {
+            warnings.push(format!("Skipped sound pack '{}': {}", id, e));
+            continue;
         }
+
         profiles.push(Profile {
             id: id.clone(),
             name: id.clone(),
-            press,
-            space: space_clip,
+            source: ProfileSource::Custom {
+                press: press_bytes,
+                space: space_bytes,
+            },
         });
     }
     profiles.sort_by(|a, b| a.id.cmp(&b.id));
@@ -180,12 +207,10 @@ pub fn load_user(dir: &Path) -> (Vec<Profile>, Vec<String>) {
 }
 
 pub fn all(user_dir: Option<&Path>) -> (Vec<Profile>, Vec<String>) {
-    let mut result = builtins();
-    let mut warnings = Vec::new();
+    let (mut result, mut warnings) = builtins();
     if let Some(dir) = user_dir {
         let (users, mut uw) = load_user(dir);
         for u in users {
-            // check shadow
             if result.iter().any(|b| b.id == u.id) {
                 warnings.push(format!(
                     "Skipped sound pack '{}': conflicts with a built-in profile",
@@ -203,13 +228,15 @@ pub fn all(user_dir: Option<&Path>) -> (Vec<Profile>, Vec<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testutil::wav_bytes;
     use std::fs::{self, File};
     use std::io::Write;
     use tempfile::tempdir;
 
     #[test]
     fn builtins_are_the_expected_switches() {
-        let b = builtins();
+        let (b, warnings) = builtins();
+        assert!(warnings.is_empty(), "{warnings:?}");
         let ids: Vec<&str> = b.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(
             ids,
@@ -223,7 +250,8 @@ mod tests {
                 "nk-cream",
                 "eg-oreo",
                 "eg-crystal-purple",
-                "turquoise"
+                "turquoise",
+                "mx-black-abs",
             ]
         );
         let names: Vec<&str> = b.iter().map(|p| p.name.as_str()).collect();
@@ -239,10 +267,41 @@ mod tests {
                 "NK Cream",
                 "Everglide Oreo",
                 "Everglide Crystal Purple",
-                "Turquoise Tealios"
+                "Turquoise Tealios",
+                "Cherry MX Black (ABS)",
             ]
         );
-        assert!(b.iter().all(|p| p.space.is_some()));
+    }
+
+    #[test]
+    fn all_builtins_decode() {
+        let (b, warnings) = builtins();
+        assert!(warnings.is_empty(), "{warnings:?}");
+        for profile in &b {
+            match &profile.source {
+                ProfileSource::Builtin { sprite, manifest } => {
+                    let pack = LoadedPack::from_builtin(sprite, manifest)
+                        .unwrap_or_else(|e| panic!("{}: {e}", profile.id));
+                    assert!(!pack.keys.is_empty(), "{} has no keys", profile.id);
+                    assert!(!pack.defaults.is_empty(), "{} has no defaults", profile.id);
+                }
+                ProfileSource::Custom { .. } => panic!("{} is not built-in", profile.id),
+            }
+        }
+    }
+
+    #[test]
+    fn mx_blue_has_per_key_letters_and_space() {
+        let (b, _) = builtins();
+        let profile = b.iter().find(|p| p.id == "mx-blue").unwrap();
+        match &profile.source {
+            ProfileSource::Builtin { manifest, .. } => {
+                let m = Manifest::parse(manifest).unwrap();
+                assert!(m.keys.contains_key(&30)); // A
+                assert!(m.keys.contains_key(&57)); // Space
+            }
+            ProfileSource::Custom { .. } => panic!("mx-blue is not built-in"),
+        }
     }
 
     #[test]
@@ -250,13 +309,30 @@ mod tests {
         let td = tempdir().unwrap();
         let pack = td.path().join("mine");
         fs::create_dir_all(&pack).unwrap();
-        let press = include_bytes!("../assets/sounds/mx-blue/press.wav");
-        let mut f = File::create(pack.join("press.wav")).unwrap();
-        f.write_all(press).unwrap();
+        fs::write(pack.join("press.wav"), wav_bytes(&[0, 1000, -1000, 0])).unwrap();
         let (ps, warns) = load_user(td.path());
         assert_eq!(ps.len(), 1);
         assert_eq!(ps[0].id, "mine");
-        assert!(ps[0].space.is_none());
+        assert!(matches!(
+            &ps[0].source,
+            ProfileSource::Custom { space: None, .. }
+        ));
+        assert!(warns.is_empty());
+    }
+
+    #[test]
+    fn user_pack_maps_space() {
+        let td = tempdir().unwrap();
+        let pack = td.path().join("mine");
+        fs::create_dir_all(&pack).unwrap();
+        fs::write(pack.join("press.wav"), wav_bytes(&[0, 1000, -1000, 0])).unwrap();
+        fs::write(pack.join("space.wav"), wav_bytes(&[0, 500, -500, 0])).unwrap();
+        let (ps, warns) = load_user(td.path());
+        assert_eq!(ps.len(), 1);
+        assert!(matches!(
+            &ps[0].source,
+            ProfileSource::Custom { space: Some(_), .. }
+        ));
         assert!(warns.is_empty());
     }
 
@@ -289,11 +365,9 @@ mod tests {
         let td = tempdir().unwrap();
         let pack = td.path().join("mx-blue");
         fs::create_dir_all(&pack).unwrap();
-        let press = include_bytes!("../assets/sounds/mx-blue/press.wav");
-        let mut f = File::create(pack.join("press.wav")).unwrap();
-        f.write_all(press).unwrap();
+        fs::write(pack.join("press.wav"), wav_bytes(&[0, 1000, -1000, 0])).unwrap();
         let (allp, warns) = all(Some(td.path()));
-        assert_eq!(allp.len(), builtins().len());
+        assert_eq!(allp.len(), builtins().0.len());
         assert!(warns.iter().any(|w| w.contains("conflicts")));
     }
 

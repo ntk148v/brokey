@@ -1,25 +1,26 @@
-use crate::listener::SoundKind;
-use crate::profiles::Profile;
+use crate::pack::{LoadedPack, PlaybackClip};
+use crate::profiles::{Profile, ProfileSource};
 use crate::Notice;
-use rodio::{Decoder, OutputStreamBuilder, Source};
-use std::io::Cursor;
+use rodio::buffer::SamplesBuffer;
+use rodio::{OutputStreamBuilder, Source};
 use std::sync::mpsc::{Receiver, Sender};
-
-pub type Clip = rodio::source::Buffered<Decoder<Cursor<Vec<u8>>>>;
-
-pub fn decode(bytes: Vec<u8>) -> Result<Clip, String> {
-    Decoder::new(Cursor::new(bytes))
-        .map(|d| d.buffered())
-        .map_err(|e| e.to_string())
-}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AudioCmd {
-    Sound(SoundKind),
+    Sound(u16),
     Preview,
     SetProfile(usize),
     SetVolume(u8),
     SetPaused(bool),
+}
+
+fn load(profile: &Profile) -> Result<LoadedPack, String> {
+    match &profile.source {
+        ProfileSource::Builtin { sprite, manifest } => LoadedPack::from_builtin(sprite, manifest),
+        ProfileSource::Custom { press, space } => {
+            LoadedPack::from_custom(press.clone(), space.clone())
+        }
+    }
 }
 
 pub fn spawn(
@@ -39,39 +40,51 @@ pub fn spawn(
             }
         };
         stream.log_on_drop(false);
-        let mut selected_idx = selected;
         let mut volume_val = volume;
         let mut paused = false;
+        let mut pack = profiles.get(selected).and_then(|profile| match load(profile) {
+            Ok(pack) => Some(pack),
+            Err(e) => {
+                let _ = notices.send(Notice::Warn(format!(
+                    "Could not load '{}': {e}",
+                    profile.name
+                )));
+                None
+            }
+        });
+
         while let Ok(cmd) = rx.recv() {
             match cmd {
-                AudioCmd::Sound(k) => {
+                AudioCmd::Sound(scan_code) => {
                     if paused {
                         continue;
                     }
-                    let profile = match profiles.get(selected_idx) {
-                        Some(p) => p,
-                        None => continue,
-                    };
-                    let clip = match k {
-                        SoundKind::Space => {
-                            profile.space.as_ref().unwrap_or(&profile.press).clone()
-                        }
-                        SoundKind::Press => profile.press.clone(),
-                    };
-                    stream.mixer().add(clip.amplify(volume_val as f32 / 100.0));
+                    if let Some(pack) = pack.as_mut() {
+                        let clip = pack.clip_for(scan_code);
+                        play(&stream, &clip, volume_val);
+                    }
                 }
                 AudioCmd::Preview => {
-                    let profile = match profiles.get(selected_idx) {
+                    if let Some(pack) = pack.as_mut() {
+                        let clip = pack.next_default();
+                        play(&stream, &clip, volume_val);
+                    }
+                }
+                AudioCmd::SetProfile(i) => {
+                    let profile = match profiles.get(i) {
                         Some(p) => p,
                         None => continue,
                     };
-                    stream
-                        .mixer()
-                        .add(profile.press.clone().amplify(volume_val as f32 / 100.0));
-                }
-                AudioCmd::SetProfile(i) => {
-                    if i < profiles.len() {
-                        selected_idx = i;
+                    match load(profile) {
+                        Ok(new_pack) => {
+                            pack = Some(new_pack);
+                        }
+                        Err(e) => {
+                            let _ = notices.send(Notice::Warn(format!(
+                                "Could not load '{}': {e}",
+                                profile.name
+                            )));
+                        }
                     }
                 }
                 AudioCmd::SetVolume(v) => {
@@ -86,6 +99,13 @@ pub fn spawn(
     tx
 }
 
+fn play(stream: &rodio::OutputStream, clip: &PlaybackClip, volume: u8) {
+    stream.mixer().add(
+        SamplesBuffer::new(clip.channels, clip.rate, clip.data())
+            .amplify(volume as f32 / 100.0),
+    );
+}
+
 fn drain_commands(rx: Receiver<AudioCmd>) {
     while rx.recv().is_ok() {}
 }
@@ -95,12 +115,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn decode_rejects_garbage() {
-        assert!(decode(b"nope".to_vec()).is_err());
+    fn builtin_profile_loads() {
+        let (profiles, warnings) = crate::profiles::builtins();
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert!(!profiles.is_empty());
+        assert!(load(&profiles[0]).is_ok());
     }
 
     #[test]
-    fn decode_accepts_builtin() {
-        assert!(decode(include_bytes!("../assets/sounds/mx-blue/press.wav").to_vec()).is_ok());
+    fn custom_profile_loads() {
+        let wav = crate::testutil::wav_bytes(&[0, 1000, -1000, 0]);
+        let profile = Profile {
+            id: "mine".to_string(),
+            name: "mine".to_string(),
+            source: ProfileSource::Custom { press: wav, space: None },
+        };
+        assert!(load(&profile).is_ok());
     }
 }
