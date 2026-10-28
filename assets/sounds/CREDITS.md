@@ -1,31 +1,45 @@
 # Sound Credits
 
-All files in this directory are **placeholders**. They were synthesized procedurally
-(short filtered-noise bursts with a damped resonant tone) rather than recorded, so no
-third-party recording is redistributed here. Replace them with real CC0 recordings if
-you want authentic switch sounds.
+Every file in this directory is a real switch recording, redistributed under the MIT
+license. No placeholder noise is left.
 
-Format of every file: mono, 44.1 kHz, 16-bit PCM WAV, shorter than 150 ms.
+Format of every file: mono, 44.1 kHz, 16-bit PCM WAV. Each clip is cut from a sprite
+sheet using that pack's own frame map, peak-normalized to −2 dBFS, and given a 6 ms
+fade-out so it cannot click at the end.
 
-## Placeholder recipes
+| Directory | Switch | Source pack | Author | License |
+| --------- | ------ | ----------- | ------ | ------- |
+| `mx-blue` | Cherry MX Blue (PBT) | [`cherrymx-blue-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-blue-pbt) | Connor Langan / MechVibes | MIT |
+| `mx-red` | Cherry MX Red (PBT) | [`speedthock-red-linear`](https://github.com/robrustdev/speedthock) (`cherrymx-red-pbt`) | robrustdev | MIT |
+| `mx-brown` | Cherry MX Brown (PBT) | [`cherrymx-brown-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-brown-pbt) | Connor Langan / MechVibes | MIT |
+| `topre` | Topre Purple Hybrid (PBT) | [`topre-purple-hybrid-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/topre-purple-hybrid-pbt) | Connor Langan / MechVibes | MIT |
 
-The placeholders were produced with the equivalent of these `sox` commands:
+`mx-blue`, `mx-brown` and `topre` come from [MechSim](https://github.com/cjlangan/MechSim),
+which took its audio and frame maps from [MechVibes](https://github.com/hainguyents13/mechvibes).
+`mx-red` is the pack KeyEcho ships locally, recorded by robrustdev for
+[speedthock](https://github.com/robrustdev/speedthock).
 
-```
-# mx-blue press (sharp, high click)
-sox -n -r 44100 -c 1 -b 16 press.wav synth 0.025 pinknoise fade 0 0.025 0.02 gain -6
+Each `press.wav` is the `A` key frame; each `space.wav` is the `Space` frame of the same
+sprite, so a profile always sounds like one keyboard.
 
-# space bar (deeper, slightly longer)
-sox -n -r 44100 -c 1 -b 16 space.wav synth 0.04 brownnoise fade 0 0.04 0.03 gain -6
-```
+## License notices
 
-`mx-red`, `mx-brown` and `topre` use the same shape with a lower noise cutoff and a
-lower resonant tone, giving progressively deeper "thock".
+MIT License, Copyright (c) 2025 Connor Langan (MechSim), Copyright (c) 2021 Hai Nguyen
+(MechVibes), Copyright (c) robrustdev (speedthock).
 
-## Replacing with real recordings
+Permission is hereby granted, free of charge, to any person obtaining a copy of this
+software and associated documentation files (the "Software"), to deal in the Software
+without restriction, including without limitation the rights to use, copy, modify,
+merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to the following
+conditions:
 
-If you swap in recordings, keep them CC0 (public domain) and record for each file:
+The above copyright notice and this permission notice shall be included in all copies
+or substantial portions of the Software.
 
-| File | Source URL | License | Author |
-| ---- | ---------- | ------- | ------ |
-| _none yet_ | | | |
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE
+OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

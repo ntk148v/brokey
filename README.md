@@ -62,6 +62,6 @@ Volume is an integer 0–100. Preferences save automatically on change.
 Put custom packs in `<config dir>/brokey/sounds/<name>/`.  
 `<name>/press.wav` is required; optional `space.wav`. The directory name becomes the profile id and name. A pack needs a file with stem `press` (any extension). Packs that collide with a built-in id or fail to decode are skipped with a warning shown in the UI.
 
-The bundled sounds are **placeholders**; see `assets/sounds/CREDITS.md` for their provenance and for how to swap in CC0 recordings.
+The bundled sounds are real recordings from MIT-licensed packs; see `assets/sounds/CREDITS.md` for provenance and attribution.
 
 Brokey only knows *that* a key was pressed, never *which* character; nothing is recorded or stored.
