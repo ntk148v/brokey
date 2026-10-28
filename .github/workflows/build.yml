@@ -1,0 +1,53 @@
+name: Build
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: release build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libx11-dev libxtst-dev
+
+      - name: Build
+        run: cargo build --locked --release
+
+      - name: Report binary size
+        shell: bash
+        run: |
+          binary="target/release/brokey"
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then
+            binary="${binary}.exe"
+          fi
+          ls -lh "$binary"
+          printf 'Binary size: %s bytes\n' "$(wc -c < "$binary" | tr -d ' ')"
