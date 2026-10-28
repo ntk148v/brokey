@@ -11,48 +11,77 @@ pub struct Profile {
     pub space: Option<Clip>,
 }
 
+fn builtin(id: &str, name: &str, press: &[u8], space: &[u8]) -> Profile {
+    Profile {
+        id: id.to_string(),
+        name: name.to_string(),
+        press: decode(press.to_vec()).expect("built-in press sound must decode"),
+        space: Some(decode(space.to_vec()).expect("built-in space sound must decode")),
+    }
+}
+
 pub fn builtins() -> Vec<Profile> {
-    let p1_press = decode(include_bytes!("../assets/sounds/mx-blue/press.wav").to_vec())
-        .expect("built-in press.wav must decode");
-    let p1_space = decode(include_bytes!("../assets/sounds/mx-blue/space.wav").to_vec())
-        .expect("built-in space.wav must decode");
-    let p2_press = decode(include_bytes!("../assets/sounds/mx-red/press.wav").to_vec())
-        .expect("built-in press.wav must decode");
-    let p2_space = decode(include_bytes!("../assets/sounds/mx-red/space.wav").to_vec())
-        .expect("built-in space.wav must decode");
-    let p3_press = decode(include_bytes!("../assets/sounds/mx-brown/press.wav").to_vec())
-        .expect("built-in press.wav must decode");
-    let p3_space = decode(include_bytes!("../assets/sounds/mx-brown/space.wav").to_vec())
-        .expect("built-in space.wav must decode");
-    let p4_press = decode(include_bytes!("../assets/sounds/topre/press.wav").to_vec())
-        .expect("built-in press.wav must decode");
-    let p4_space = decode(include_bytes!("../assets/sounds/topre/space.wav").to_vec())
-        .expect("built-in space.wav must decode");
     vec![
-        Profile {
-            id: "mx-blue".to_string(),
-            name: "Cherry MX Blue".to_string(),
-            press: p1_press,
-            space: Some(p1_space),
-        },
-        Profile {
-            id: "mx-red".to_string(),
-            name: "Cherry MX Red".to_string(),
-            press: p2_press,
-            space: Some(p2_space),
-        },
-        Profile {
-            id: "mx-brown".to_string(),
-            name: "Cherry MX Brown".to_string(),
-            press: p3_press,
-            space: Some(p3_space),
-        },
-        Profile {
-            id: "topre".to_string(),
-            name: "Topre".to_string(),
-            press: p4_press,
-            space: Some(p4_space),
-        },
+        builtin(
+            "mx-blue",
+            "Cherry MX Blue",
+            include_bytes!("../assets/sounds/mx-blue/press.wav"),
+            include_bytes!("../assets/sounds/mx-blue/space.wav"),
+        ),
+        builtin(
+            "mx-red",
+            "Cherry MX Red",
+            include_bytes!("../assets/sounds/mx-red/press.wav"),
+            include_bytes!("../assets/sounds/mx-red/space.wav"),
+        ),
+        builtin(
+            "mx-brown",
+            "Cherry MX Brown",
+            include_bytes!("../assets/sounds/mx-brown/press.wav"),
+            include_bytes!("../assets/sounds/mx-brown/space.wav"),
+        ),
+        builtin(
+            "topre",
+            "Topre",
+            include_bytes!("../assets/sounds/topre/press.wav"),
+            include_bytes!("../assets/sounds/topre/space.wav"),
+        ),
+        builtin(
+            "mx-black",
+            "Cherry MX Black",
+            include_bytes!("../assets/sounds/mx-black/press.wav"),
+            include_bytes!("../assets/sounds/mx-black/space.wav"),
+        ),
+        builtin(
+            "holy-panda",
+            "Holy Panda",
+            include_bytes!("../assets/sounds/holy-panda/press.wav"),
+            include_bytes!("../assets/sounds/holy-panda/space.wav"),
+        ),
+        builtin(
+            "nk-cream",
+            "NK Cream",
+            include_bytes!("../assets/sounds/nk-cream/press.wav"),
+            include_bytes!("../assets/sounds/nk-cream/space.wav"),
+        ),
+        builtin(
+            "eg-oreo",
+            "Everglide Oreo",
+            include_bytes!("../assets/sounds/eg-oreo/press.wav"),
+            include_bytes!("../assets/sounds/eg-oreo/space.wav"),
+        ),
+        builtin(
+            "eg-crystal-purple",
+            "Everglide Crystal Purple",
+            include_bytes!("../assets/sounds/eg-crystal-purple/press.wav"),
+            include_bytes!("../assets/sounds/eg-crystal-purple/space.wav"),
+        ),
+        builtin(
+            "turquoise",
+            "Turquoise Tealios",
+            include_bytes!("../assets/sounds/turquoise/press.wav"),
+            include_bytes!("../assets/sounds/turquoise/space.wav"),
+        ),
     ]
 }
 
@@ -179,23 +208,41 @@ mod tests {
     use tempfile::tempdir;
 
     #[test]
-    fn builtins_are_the_four_switches() {
+    fn builtins_are_the_expected_switches() {
         let b = builtins();
-        assert_eq!(b.len(), 4);
-        let ids: Vec<String> = b.iter().map(|p| p.id.clone()).collect();
+        let ids: Vec<&str> = b.iter().map(|p| p.id.as_str()).collect();
         assert_eq!(
             ids,
             vec![
-                "mx-blue".to_string(),
-                "mx-red".to_string(),
-                "mx-brown".to_string(),
-                "topre".to_string()
+                "mx-blue",
+                "mx-red",
+                "mx-brown",
+                "topre",
+                "mx-black",
+                "holy-panda",
+                "nk-cream",
+                "eg-oreo",
+                "eg-crystal-purple",
+                "turquoise"
             ]
         );
-        assert_eq!(b[0].name, "Cherry MX Blue");
-        assert_eq!(b[1].name, "Cherry MX Red");
-        assert_eq!(b[2].name, "Cherry MX Brown");
-        assert_eq!(b[3].name, "Topre");
+        let names: Vec<&str> = b.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec![
+                "Cherry MX Blue",
+                "Cherry MX Red",
+                "Cherry MX Brown",
+                "Topre",
+                "Cherry MX Black",
+                "Holy Panda",
+                "NK Cream",
+                "Everglide Oreo",
+                "Everglide Crystal Purple",
+                "Turquoise Tealios"
+            ]
+        );
+        assert!(b.iter().all(|p| p.space.is_some()));
     }
 
     #[test]
@@ -246,7 +293,7 @@ mod tests {
         let mut f = File::create(pack.join("press.wav")).unwrap();
         f.write_all(press).unwrap();
         let (allp, warns) = all(Some(td.path()));
-        assert_eq!(allp.len(), 4);
+        assert_eq!(allp.len(), builtins().len());
         assert!(warns.iter().any(|w| w.contains("conflicts")));
     }
 

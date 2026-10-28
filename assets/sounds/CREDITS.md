@@ -7,12 +7,18 @@ Format of every file: mono, 44.1 kHz, 16-bit PCM WAV. Each clip is cut from a sp
 sheet using that pack's own frame map, peak-normalized to −2 dBFS, and given a 6 ms
 fade-out so it cannot click at the end.
 
-| Directory | Switch | Source pack | Author | License |
-| --------- | ------ | ----------- | ------ | ------- |
-| `mx-blue` | Cherry MX Blue (PBT) | [`cherrymx-blue-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-blue-pbt) | Connor Langan / MechVibes | MIT |
-| `mx-red` | Cherry MX Red (PBT) | [`speedthock-red-linear`](https://github.com/robrustdev/speedthock) (`cherrymx-red-pbt`) | robrustdev | MIT |
-| `mx-brown` | Cherry MX Brown (PBT) | [`cherrymx-brown-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-brown-pbt) | Connor Langan / MechVibes | MIT |
-| `topre` | Topre Purple Hybrid (PBT) | [`topre-purple-hybrid-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/topre-purple-hybrid-pbt) | Connor Langan / MechVibes | MIT |
+| Directory           | Switch                    | Source pack                                                                                              | Author                    | License |
+| ------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------- | ------- |
+| `mx-blue`           | Cherry MX Blue (PBT)      | [`cherrymx-blue-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-blue-pbt)             | Connor Langan / MechVibes | MIT     |
+| `mx-red`            | Cherry MX Red (PBT)       | [`speedthock-red-linear`](https://github.com/robrustdev/speedthock) (`cherrymx-red-pbt`)                 | robrustdev                | MIT     |
+| `mx-brown`          | Cherry MX Brown (PBT)     | [`cherrymx-brown-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-brown-pbt)           | Connor Langan / MechVibes | MIT     |
+| `topre`             | Topre Purple Hybrid (PBT) | [`topre-purple-hybrid-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/topre-purple-hybrid-pbt) | Connor Langan / MechVibes | MIT     |
+| `mx-black`          | Cherry MX Black (PBT)     | [`cherrymx-black-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-black-pbt)           | Connor Langan / MechVibes | MIT     |
+| `holy-panda`        | Holy Panda                | [`holy-pandas`](https://github.com/cjlangan/MechSim/tree/main/audio/holy-pandas)                         | Connor Langan / MechVibes | MIT     |
+| `nk-cream`          | NK Cream                  | [`nk-cream`](https://github.com/cjlangan/MechSim/tree/main/audio/nk-cream)                               | Connor Langan / MechVibes | MIT     |
+| `eg-oreo`           | Everglide Oreo            | [`eg-oreo`](https://github.com/cjlangan/MechSim/tree/main/audio/eg-oreo)                                 | Connor Langan / MechVibes | MIT     |
+| `eg-crystal-purple` | Everglide Crystal Purple  | [`eg-crystal-purple`](https://github.com/cjlangan/MechSim/tree/main/audio/eg-crystal-purple)             | Connor Langan / MechVibes | MIT     |
+| `turquoise`         | Turquoise Tealios         | [`turquoise`](https://github.com/cjlangan/MechSim/tree/main/audio/turquoise)                             | Connor Langan / MechVibes | MIT     |
 
 `mx-blue`, `mx-brown` and `topre` come from [MechSim](https://github.com/cjlangan/MechSim),
 which took its audio and frame maps from [MechVibes](https://github.com/hainguyents13/mechvibes).
