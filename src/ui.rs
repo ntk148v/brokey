@@ -277,7 +277,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App) {
     }
 
     let footer = Paragraph::new("↑↓ profile  ←→ volume  space pause  p preview  q quit")
-        .style(Style::default().fg(Color::Gray));
+        .style(Style::default().fg(Color::Reset));
     frame.render_widget(footer, chunks[5]);
 }
 
