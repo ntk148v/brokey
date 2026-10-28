@@ -42,16 +42,18 @@ pub fn spawn(
         stream.log_on_drop(false);
         let mut volume_val = volume;
         let mut paused = false;
-        let mut pack = profiles.get(selected).and_then(|profile| match load(profile) {
-            Ok(pack) => Some(pack),
-            Err(e) => {
-                let _ = notices.send(Notice::Warn(format!(
-                    "Could not load '{}': {e}",
-                    profile.name
-                )));
-                None
-            }
-        });
+        let mut pack = profiles
+            .get(selected)
+            .and_then(|profile| match load(profile) {
+                Ok(pack) => Some(pack),
+                Err(e) => {
+                    let _ = notices.send(Notice::Warn(format!(
+                        "Could not load '{}': {e}",
+                        profile.name
+                    )));
+                    None
+                }
+            });
 
         while let Ok(cmd) = rx.recv() {
             match cmd {
@@ -101,8 +103,7 @@ pub fn spawn(
 
 fn play(stream: &rodio::OutputStream, clip: &PlaybackClip, volume: u8) {
     stream.mixer().add(
-        SamplesBuffer::new(clip.channels, clip.rate, clip.data())
-            .amplify(volume as f32 / 100.0),
+        SamplesBuffer::new(clip.channels, clip.rate, clip.data()).amplify(volume as f32 / 100.0),
     );
 }
 
@@ -128,7 +129,10 @@ mod tests {
         let profile = Profile {
             id: "mine".to_string(),
             name: "mine".to_string(),
-            source: ProfileSource::Custom { press: wav, space: None },
+            source: ProfileSource::Custom {
+                press: wav,
+                space: None,
+            },
         };
         assert!(load(&profile).is_ok());
     }
