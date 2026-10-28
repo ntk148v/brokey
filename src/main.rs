@@ -1,9 +1,11 @@
 use std::sync::mpsc;
+use std::thread;
 
 pub mod audio;
 pub mod config;
 pub mod listener;
 pub mod profiles;
+pub mod ui;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Notice {
@@ -12,20 +14,46 @@ pub enum Notice {
 }
 
 fn main() {
-    let (ntx, nrx) = mpsc::channel();
-    let profiles = profiles::builtins();
-    let audio = audio::spawn(profiles, 0, 60, ntx.clone());
-    std::thread::spawn(move || {
-        while let Ok(n) = nrx.recv() {
-            eprintln!("{:?}", n);
-        }
+    let cfg_path = config::dir().map(|d| d.join("config.toml"));
+    let cfg_path_for_load = cfg_path.clone();
+    let (cfg, cfg_warn) = if let Some(ref p) = cfg_path_for_load {
+        config::load(p)
+    } else {
+        (config::Config::default(), None)
+    };
+
+    let user_dir = config::dir().map(|d| d.join("sounds"));
+    let (profiles_vec, warnings) = profiles::all(user_dir.as_deref());
+    let profile_pairs: Vec<(String, String)> = profiles_vec
+        .iter()
+        .map(|p| (p.id.clone(), p.name.clone()))
+        .collect();
+
+    let mut app = ui::new(profile_pairs.clone(), &cfg);
+    if let Some(w) = cfg_warn {
+        crate::ui::on_notice(&mut app, Notice::Warn(w));
+    }
+    for w in warnings {
+        crate::ui::on_notice(&mut app, Notice::Warn(w));
+    }
+
+    let (notice_tx, notice_rx) = mpsc::channel::<Notice>();
+    let audio_tx = audio::spawn(profiles_vec, app.selected, app.volume, notice_tx.clone());
+
+    let app_for_ui = app;
+    let audio_tx_clone = audio_tx.clone();
+    let notice_rx_clone = notice_rx;
+    let cfg_path_for_ui = cfg_path.clone();
+    let ui_handle = thread::spawn(move || {
+        let _ = ui::run(app_for_ui, audio_tx_clone, notice_rx_clone, cfg_path_for_ui);
+        std::process::exit(0);
     });
 
-    println!("brokey: listening — type anywhere, Ctrl-C to quit");
     if let Err(e) = listener::listen(move |k| {
-        let _ = audio.send(audio::AudioCmd::Sound(k));
+        let _ = audio_tx.send(audio::AudioCmd::Sound(k));
     }) {
-        eprintln!("{}", e);
+        let _ = notice_tx.send(Notice::ListenerFailed(e));
+        let _ = ui_handle.join();
         std::process::exit(1);
     }
 }
