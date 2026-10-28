@@ -75,9 +75,8 @@ impl State {
             return;
         };
         let name = profile.name.clone();
-        let optional = profile.is_optional();
 
-        if optional && !self.is_cached(saved) {
+        if !profile.is_available(self.packs_dir.as_deref()) {
             self.fallback(format!(
                 "Saved profile '{name}' needs downloading; press Enter to download"
             ));
@@ -137,37 +136,23 @@ impl State {
             return false;
         }
 
-        if !optional {
-            return match load(&self.profiles[index], self.packs_dir.as_deref()) {
-                Ok(pack) => {
-                    self.pack = Some(pack);
-                    let _ = self.notices.send(Notice::Activated { index, user: true });
-                    true
-                }
-                Err(e) => {
-                    self.warn(format!("Could not load '{name}': {e}"));
-                    false
-                }
-            };
-        }
-
-        let Some(packs) = self.packs_dir.clone() else {
-            self.warn(format!("Could not load '{name}': no config directory"));
-            return false;
-        };
-
-        match download::load_cached(&packs, &id) {
+        match load(&self.profiles[index], self.packs_dir.as_deref()) {
             Ok(pack) => {
                 self.pack = Some(pack);
                 let _ = self.notices.send(Notice::Activated { index, user: true });
                 true
             }
             Err(e) => {
-                if download::is_installed(&packs, &id) {
-                    let _ = std::fs::remove_dir_all(download::cache_dir(&packs, &id));
-                    self.warn(format!("Refreshing '{name}': {e}"));
+                match self.packs_dir.clone() {
+                    Some(packs) if optional => {
+                        if download::is_installed(&packs, &id) {
+                            let _ = std::fs::remove_dir_all(download::cache_dir(&packs, &id));
+                            self.warn(format!("Refreshing '{name}': {e}"));
+                        }
+                        self.start_download(index, packs);
+                    }
+                    _ => self.warn(format!("Could not load '{name}': {e}")),
                 }
-                self.start_download(index, packs);
                 false
             }
         }
@@ -230,13 +215,6 @@ impl State {
                 let _ = tx.send(AudioCmd::PackInstalled { index, ok: false });
             }
         });
-    }
-
-    fn is_cached(&self, index: usize) -> bool {
-        match (self.profiles.get(index), self.packs_dir.as_deref()) {
-            (Some(p), Some(dir)) => !p.is_optional() || download::is_installed(dir, &p.id),
-            _ => false,
-        }
     }
 
     fn warn(&self, message: String) {

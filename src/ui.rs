@@ -126,8 +126,11 @@ pub fn on_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<AudioC
 }
 
 impl App {
-    pub fn on_key(&mut self, code: KeyCode, mods: KeyModifiers) -> Option<AudioCmd> {
-        on_key(self, code, mods)
+    fn name_of(&self, id: &str) -> String {
+        self.profiles
+            .iter()
+            .find(|p| p.id == id)
+            .map_or_else(|| id.to_string(), |p| p.name.clone())
     }
 
     pub fn config(&self) -> Config {
@@ -149,12 +152,7 @@ impl App {
                 false
             }
             Notice::Downloading(id) => {
-                let name = self
-                    .profiles
-                    .iter()
-                    .find(|p| p.id == id)
-                    .map(|p| p.name.clone())
-                    .unwrap_or_else(|| id.clone());
+                let name = self.name_of(&id);
                 if let Some(entry) = self.profiles.iter_mut().find(|p| p.id == id) {
                     entry.downloading = true;
                 }
@@ -162,12 +160,7 @@ impl App {
                 false
             }
             Notice::Downloaded(id) => {
-                let name = self
-                    .profiles
-                    .iter()
-                    .find(|p| p.id == id)
-                    .map(|p| p.name.clone())
-                    .unwrap_or_else(|| id.clone());
+                let name = self.name_of(&id);
                 if let Some(entry) = self.profiles.iter_mut().find(|p| p.id == id) {
                     entry.available = true;
                     entry.downloading = false;
@@ -176,12 +169,7 @@ impl App {
                 false
             }
             Notice::DownloadFailed { id, error } => {
-                let name = self
-                    .profiles
-                    .iter()
-                    .find(|p| p.id == id)
-                    .map(|p| p.name.clone())
-                    .unwrap_or_else(|| id.clone());
+                let name = self.name_of(&id);
                 if let Some(entry) = self.profiles.iter_mut().find(|p| p.id == id) {
                     entry.downloading = false;
                 }
@@ -206,10 +194,6 @@ impl App {
 
 pub fn on_notice(app: &mut App, n: Notice) -> bool {
     app.on_notice(n)
-}
-
-pub fn config(app: &App) -> Config {
-    app.config()
 }
 
 pub fn draw(frame: &mut ratatui::Frame, app: &App) {

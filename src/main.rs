@@ -20,16 +20,15 @@ pub enum Notice {
 }
 
 fn main() {
-    let cfg_path = config::dir().map(|d| d.join("config.toml"));
-    let cfg_path_for_load = cfg_path.clone();
-    let (cfg, cfg_warn) = if let Some(ref p) = cfg_path_for_load {
-        config::load(p)
-    } else {
-        (config::Config::default(), None)
+    let dir = config::dir();
+    let cfg_path = dir.as_ref().map(|d| d.join("config.toml"));
+    let (cfg, cfg_warn) = match &cfg_path {
+        Some(p) => config::load(p),
+        None => (config::Config::default(), None),
     };
 
-    let user_dir = config::dir().map(|d| d.join("sounds"));
-    let packs_dir = config::dir().map(|d| d.join("packs"));
+    let user_dir = dir.as_ref().map(|d| d.join("sounds"));
+    let packs_dir = dir.as_ref().map(|d| d.join("packs"));
     let (profiles_vec, warnings) = profiles::all(user_dir.as_deref());
     let entries: Vec<ui::ProfileEntry> = profiles_vec
         .iter()
@@ -59,12 +58,9 @@ fn main() {
         notice_tx.clone(),
     );
 
-    let app_for_ui = app;
-    let audio_tx_clone = audio_tx.clone();
-    let notice_rx_clone = notice_rx;
-    let cfg_path_for_ui = cfg_path.clone();
+    let ui_audio_tx = audio_tx.clone();
     let ui_handle = thread::spawn(move || {
-        let code = match ui::run(app_for_ui, audio_tx_clone, notice_rx_clone, cfg_path_for_ui) {
+        let code = match ui::run(app, ui_audio_tx, notice_rx, cfg_path) {
             Ok(()) => 0,
             Err(e) => {
                 eprintln!("brokey: {e}");
