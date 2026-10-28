@@ -1,6 +1,7 @@
 use std::sync::mpsc;
 
 pub mod audio;
+pub mod config;
 pub mod listener;
 pub mod profiles;
 
