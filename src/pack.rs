@@ -282,9 +282,15 @@ mod tests {
 
     #[test]
     fn parses_and_checks_release() {
-        let m = VALID.replace("\"defaults\": [[0, 5]]", "\"defaults\": [[0, 5]], \"release\": [[5, 5]]");
+        let m = VALID.replace(
+            "\"defaults\": [[0, 5]]",
+            "\"defaults\": [[0, 5]], \"release\": [[5, 5]]",
+        );
         assert_eq!(parse(&m).unwrap().release, vec![(5, 5)]);
-        let bad = VALID.replace("\"defaults\": [[0, 5]]", "\"defaults\": [[0, 5]], \"release\": [[8, 5]]");
+        let bad = VALID.replace(
+            "\"defaults\": [[0, 5]]",
+            "\"defaults\": [[0, 5]], \"release\": [[8, 5]]",
+        );
         assert!(parse(&bad).unwrap_err().contains("exceeds"));
     }
 

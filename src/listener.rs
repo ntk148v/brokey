@@ -162,7 +162,10 @@ mod tests {
         let mut held = vec![];
         assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), Some((30, true)));
         assert_eq!(classify(&mut held, &KeyPress(Key::Space)), Some((57, true)));
-        assert_eq!(classify(&mut held, &KeyRelease(Key::Space)), Some((57, false)));
+        assert_eq!(
+            classify(&mut held, &KeyRelease(Key::Space)),
+            Some((57, false))
+        );
     }
 
     #[test]
@@ -170,7 +173,10 @@ mod tests {
         let mut held = vec![];
         assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), Some((30, true)));
         assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), None);
-        assert_eq!(classify(&mut held, &KeyRelease(Key::KeyA)), Some((30, false)));
+        assert_eq!(
+            classify(&mut held, &KeyRelease(Key::KeyA)),
+            Some((30, false))
+        );
         assert_eq!(classify(&mut held, &KeyRelease(Key::KeyA)), None);
         assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), Some((30, true)));
     }

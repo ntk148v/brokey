@@ -15,7 +15,10 @@ pub enum ProfileSource {
         release: Option<Vec<u8>>,
     },
     /// A user folder in the bundled format: config.json + sound.flac.
-    Sprite { sprite: Vec<u8>, manifest: Vec<u8> },
+    Sprite {
+        sprite: Vec<u8>,
+        manifest: Vec<u8>,
+    },
 }
 
 #[derive(Clone)]
@@ -152,9 +155,10 @@ pub fn load_user(dir: &Path) -> (Vec<Profile>, Vec<String>) {
             continue;
         }
 
-        if let (Ok(manifest), Ok(sprite)) =
-            (fs::read(p.join("config.json")), fs::read(p.join("sound.flac")))
-        {
+        if let (Ok(manifest), Ok(sprite)) = (
+            fs::read(p.join("config.json")),
+            fs::read(p.join("sound.flac")),
+        ) {
             match LoadedPack::from_builtin(&sprite, &manifest) {
                 Ok(_) => profiles.push(Profile {
                     id: id.clone(),
@@ -435,7 +439,12 @@ pub(crate) mod tests {
         fs::write(pack.join("release.wav"), wav_bytes(&[0, 500, -500, 0])).unwrap();
         let (ps, warns) = load_user(td.path());
         assert!(warns.is_empty(), "{warns:?}");
-        let ProfileSource::Custom { press, space, release } = &ps[0].source else {
+        let ProfileSource::Custom {
+            press,
+            space,
+            release,
+        } = &ps[0].source
+        else {
             panic!("not a custom pack");
         };
         let mut loaded =
