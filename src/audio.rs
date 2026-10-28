@@ -304,8 +304,20 @@ fn spawn_with_fetcher(
 
 fn play(stream: &rodio::OutputStream, clip: &PlaybackClip, volume: u8) {
     stream.mixer().add(
-        SamplesBuffer::new(clip.channels, clip.rate, clip.data()).amplify(volume as f32 / 100.0),
+        SamplesBuffer::new(clip.channels, clip.rate, clip.data())
+            .speed(jitter())
+            .amplify(volume as f32 / 100.0),
     );
+}
+
+/// Speed factor in 0.97..=1.03 so repeated keys don't sound identical.
+/// Keystroke timing is human, so clock nanoseconds are random enough.
+fn jitter() -> f32 {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    1.0 + ((nanos % 61) as f32 - 30.0) / 1000.0
 }
 
 fn drain_commands(rx: Receiver<AudioCmd>) {
