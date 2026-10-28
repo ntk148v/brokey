@@ -368,36 +368,38 @@ pub fn run(
     cfg_path: Option<PathBuf>,
 ) -> io::Result<()> {
     let mut terminal = ratatui::init();
-    loop {
-        terminal.draw(|f| draw(f, &app))?;
-        if event::poll(Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
-                    let cmd = on_key(&mut app, key.code, key.modifiers);
-                    if let Some(c) = cmd {
-                        let _ = audio.send(c);
-                        if matches!(c, AudioCmd::SetVolume(_)) {
-                            if let Some(e) = save(&app, &cfg_path) {
-                                app.notice = Some(e);
+    let result = (|| -> io::Result<()> {
+        loop {
+            terminal.draw(|f| draw(f, &app))?;
+            if event::poll(Duration::from_millis(100))? {
+                if let Event::Key(key) = event::read()? {
+                    if key.kind == KeyEventKind::Press {
+                        let cmd = on_key(&mut app, key.code, key.modifiers);
+                        if let Some(c) = cmd {
+                            let _ = audio.send(c);
+                            if matches!(c, AudioCmd::SetVolume(_)) {
+                                if let Some(e) = save(&app, &cfg_path) {
+                                    app.notice = Some(e);
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-        while let Ok(n) = notices.try_recv() {
-            if on_notice(&mut app, n) {
-                if let Some(e) = save(&app, &cfg_path) {
-                    app.notice = Some(e);
+            while let Ok(n) = notices.try_recv() {
+                if on_notice(&mut app, n) {
+                    if let Some(e) = save(&app, &cfg_path) {
+                        app.notice = Some(e);
+                    }
                 }
             }
+            if app.quit {
+                return Ok(());
+            }
         }
-        if app.quit {
-            break;
-        }
-    }
+    })();
     ratatui::restore();
-    Ok(())
+    result
 }
 
 #[cfg(test)]

@@ -64,8 +64,14 @@ fn main() {
     let notice_rx_clone = notice_rx;
     let cfg_path_for_ui = cfg_path.clone();
     let ui_handle = thread::spawn(move || {
-        let _ = ui::run(app_for_ui, audio_tx_clone, notice_rx_clone, cfg_path_for_ui);
-        std::process::exit(0);
+        let code = match ui::run(app_for_ui, audio_tx_clone, notice_rx_clone, cfg_path_for_ui) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("brokey: {e}");
+                1
+            }
+        };
+        std::process::exit(code);
     });
 
     if let Err(e) = listener::listen(move |k| {
