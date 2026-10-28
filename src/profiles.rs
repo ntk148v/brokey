@@ -14,6 +14,8 @@ pub enum ProfileSource {
         space: Option<Vec<u8>>,
         release: Option<Vec<u8>>,
     },
+    /// A user folder in the bundled format: config.json + sound.flac.
+    Sprite { sprite: Vec<u8>, manifest: Vec<u8> },
 }
 
 #[derive(Clone)]
@@ -33,7 +35,9 @@ impl Profile {
             ProfileSource::Optional => packs
                 .map(|dir| crate::download::is_installed(dir, &self.id))
                 .unwrap_or(false),
-            ProfileSource::Builtin { .. } | ProfileSource::Custom { .. } => true,
+            ProfileSource::Builtin { .. }
+            | ProfileSource::Custom { .. }
+            | ProfileSource::Sprite { .. } => true,
         }
     }
 }
@@ -145,6 +149,20 @@ pub fn load_user(dir: &Path) -> (Vec<Profile>, Vec<String>) {
             .unwrap_or("")
             .to_string();
         if id.is_empty() {
+            continue;
+        }
+
+        if let (Ok(manifest), Ok(sprite)) =
+            (fs::read(p.join("config.json")), fs::read(p.join("sound.flac")))
+        {
+            match LoadedPack::from_builtin(&sprite, &manifest) {
+                Ok(_) => profiles.push(Profile {
+                    id: id.clone(),
+                    name: id.clone(),
+                    source: ProfileSource::Sprite { sprite, manifest },
+                }),
+                Err(e) => warnings.push(format!("Skipped sound pack '{}': {}", id, e)),
+            }
             continue;
         }
 
@@ -324,7 +342,9 @@ pub(crate) mod tests {
                     assert!(!pack.keys.is_empty(), "{} has no keys", profile.id);
                     assert!(!pack.defaults.is_empty(), "{} has no defaults", profile.id);
                 }
-                ProfileSource::Optional | ProfileSource::Custom { .. } => {
+                ProfileSource::Optional
+                | ProfileSource::Custom { .. }
+                | ProfileSource::Sprite { .. } => {
                     panic!("{} is not embedded", profile.id)
                 }
             }
@@ -421,6 +441,33 @@ pub(crate) mod tests {
         let mut loaded =
             LoadedPack::from_custom(press.clone(), space.clone(), release.clone()).unwrap();
         assert!(loaded.next_release().is_some());
+    }
+
+    #[test]
+    fn user_sprite_pack_loads() {
+        let (sprite, manifest) = embedded_bytes();
+        let td = tempdir().unwrap();
+        let pack = td.path().join("my-blue");
+        fs::create_dir_all(&pack).unwrap();
+        fs::write(pack.join("config.json"), manifest).unwrap();
+        fs::write(pack.join("sound.flac"), sprite).unwrap();
+        let (ps, warns) = load_user(td.path());
+        assert!(warns.is_empty(), "{warns:?}");
+        assert_eq!(ps[0].id, "my-blue");
+        assert!(matches!(&ps[0].source, ProfileSource::Sprite { .. }));
+    }
+
+    #[test]
+    fn user_sprite_pack_with_bad_manifest_is_skipped() {
+        let (sprite, _) = embedded_bytes();
+        let td = tempdir().unwrap();
+        let pack = td.path().join("broken");
+        fs::create_dir_all(&pack).unwrap();
+        fs::write(pack.join("config.json"), b"{}").unwrap();
+        fs::write(pack.join("sound.flac"), sprite).unwrap();
+        let (ps, warns) = load_user(td.path());
+        assert!(ps.is_empty());
+        assert!(warns[0].contains("broken"));
     }
 
     #[test]

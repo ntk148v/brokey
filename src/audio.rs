@@ -28,6 +28,7 @@ fn load(profile: &Profile, packs: Option<&Path>) -> Result<LoadedPack, String> {
             space,
             release,
         } => LoadedPack::from_custom(press.clone(), space.clone(), release.clone()),
+        ProfileSource::Sprite { sprite, manifest } => LoadedPack::from_builtin(sprite, manifest),
         ProfileSource::Optional => {
             let packs = packs.ok_or_else(|| "no config directory".to_string())?;
             download::load_cached(packs, &profile.id)
