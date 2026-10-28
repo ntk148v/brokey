@@ -120,10 +120,11 @@ helper returns `dir()/packs`.
 
 A cached pack is considered installed when both `config.json` and `sound.flac`
 exist. Full validation (manifest parse plus FLAC decode) happens when the pack
-is loaded. A cache that exists but fails to load is treated as a failed pack:
-the UI shows an error, the old pack stays active, and selecting the profile
-again retries the download. No version or checksum file is stored; the manifest
-`version` field is the format guard.
+is loaded. If a cache exists but fails to load, that same selection removes the
+corrupt directory, shows a notice, and immediately starts a fresh download. If
+the fresh download also fails, the previous pack stays active and the user can
+retry by selecting the profile again. No version or checksum file is stored;
+the manifest `version` field is the format guard.
 
 ## Download module (`src/download.rs`)
 
@@ -150,15 +151,18 @@ pub fn install_from_bytes(
   bundled webpki roots, and does not need OpenSSL or system certificate setup.
 - Profile ids are validated against `^[a-z0-9][a-z0-9-]{0,63}$` before being
   used in a URL or path. This rejects `.`, `/`, uppercase, and traversal.
-- Each file is fetched with a 16 MiB cap. HTTP failures, non-200 responses, and
-  oversize bodies become readable error strings.
+- Each file is fetched with a 16 MiB cap and a 30 s request timeout. HTTP
+  failures, non-200 responses, timeouts, and oversize bodies become readable
+  error strings.
 - `fetch_and_install` downloads `config.json` then `sound.flac`, calls
   `install_from_bytes`, and returns.
 - `install_from_bytes` parses the manifest and decodes the FLAC **in memory**
-  before touching the cache. On success it writes both files into
-  `packs/.tmp-<id>-<pid>`, removes any existing `packs/<id>`, and renames the
-  temp directory into place. On any failure the temp directory is removed and
-  the previous cache is left untouched.
+  before touching the cache. On success it writes both files into a uniquely
+  named `packs/.tmp-<id>-<unique>` directory. If `packs/<id>` already exists it
+  is first renamed to `packs/.old-<id>-<unique>`; the temp directory is then
+  renamed into place and the backup is removed. If the second rename fails, the
+  backup is restored. On any failure the temp directory is removed and the
+  previous cache is left untouched.
 - `load_cached` reads both files, parses the manifest, and decodes with
   `LoadedPack::from_builtin`; errors include the pack id.
 
@@ -225,28 +229,32 @@ Selection behavior:
 
 1. `SetProfile(i)` records `selected = i` and tries to load.
 2. Embedded and custom profiles load immediately. On success the pack is
-   replaced and one default clip is played as the preview (the UI no longer
-   sends a second `Preview` command).
-3. Optional profiles load from cache when available.
+   replaced and one default clip is played as the preview, even while paused.
+   The UI no longer sends a second `Preview` command.
+3. Optional profiles load from cache when available. If the manifest or FLAC is
+   corrupt, the cache directory is removed, a warning is shown, and the
+   download path below runs immediately.
 4. If an optional pack is not cached and no download is active, the audio thread
    sends `Notice::Downloading(id)` and spawns one worker thread.
-5. If a download is already active, the selection is remembered in `pending`.
-   A second download is not started. This prevents scrolling through the list
-   from spawning many downloads or retrying a dead network repeatedly.
+5. If a download is already active and the new selection is another uncached
+   optional pack, it is remembered in `pending`. A second download is not
+   started. Selecting an embedded, custom, or cached profile clears `pending`.
+   This prevents scrolling through the list from spawning many downloads or
+   retrying a dead network repeatedly.
 6. The worker calls `download::fetch_and_install`. On failure it sends
    `Notice::DownloadFailed { id, error }` and then
    `AudioCmd::PackInstalled { index, ok: false }`. On success it sends
    `PackInstalled { index, ok: true }`; the audio thread sends
    `Notice::Downloaded(id)` and reloads the pack from cache only if that index
    is still selected.
-7. After a download finishes, `pending` is consulted once: if the current
-   selection is still an uncached optional pack, a download starts for it.
-   A failed download clears `pending` instead of cascading through the list.
+7. `PackInstalled` clears `downloading` using `profiles[index].id`. Then
+   `pending` is consulted once: if the current selection is still an uncached
+   optional pack, a download starts for it. A failed download clears `pending`
+   instead of cascading through the list, and does not auto-retry.
 8. At startup the saved profile is loaded the same way but without a preview.
    If it is an optional pack that is not cached, it downloads immediately.
 
-Failure keeps the previous pack active. A pack that fails to load from a
-corrupt cache is re-downloaded on the next explicit selection.
+Failure keeps the previous pack active.
 
 ### Notices (`src/main.rs`)
 
@@ -335,8 +343,9 @@ matches the current "save on change" behavior.
 - Download failure (offline, 404, timeout, oversize, bad manifest, bad FLAC):
   human-readable notice, previous pack stays active, cache unchanged, retry on
   the next explicit selection.
-- Corrupt cached pack: load fails, notice, old pack stays active, next selection
-  re-downloads.
+- Corrupt cached pack: load fails, the corrupt cache is removed, a notice is
+  shown, and a fresh download starts on the same selection; if that fails, the
+  old pack stays active.
 - Missing config directory: optional packs report an error; embedded and custom
   packs work.
 - Concurrent selections: one download at a time; only the latest selection can
@@ -359,7 +368,8 @@ Unit tests:
    different id; `is_installed` and `load_cached` then succeed.
 6. Invalid manifest or invalid FLAC is rejected and no cache directory is left
    behind.
-7. Reinstalling over an existing cache replaces it and leaves a loadable pack.
+7. Reinstalling over an existing cache replaces it and leaves a loadable pack;
+   a failed reinstall leaves the previous cache loadable.
 8. `audio::load` succeeds for a cached optional profile and errors with a
    useful message when the cache is absent.
 9. Every committed directory under `assets/sounds-optional/` decodes, and there
