@@ -16,6 +16,7 @@ pub enum Notice {
     Downloading(String),
     Downloaded(String),
     DownloadFailed { id: String, error: String },
+    Activated { index: usize, user: bool },
 }
 
 fn main() {
@@ -43,17 +44,17 @@ fn main() {
 
     let mut app = ui::new(entries, &cfg);
     if let Some(w) = cfg_warn {
-        crate::ui::on_notice(&mut app, Notice::Warn(w));
+        let _ = crate::ui::on_notice(&mut app, Notice::Warn(w));
     }
     for w in warnings {
-        crate::ui::on_notice(&mut app, Notice::Warn(w));
+        let _ = crate::ui::on_notice(&mut app, Notice::Warn(w));
     }
 
     let (notice_tx, notice_rx) = mpsc::channel::<Notice>();
     let audio_tx = audio::spawn(
         profiles_vec,
         packs_dir,
-        app.selected,
+        app.cursor,
         app.volume,
         notice_tx.clone(),
     );

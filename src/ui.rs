@@ -22,7 +22,9 @@ pub struct ProfileEntry {
 #[derive(Clone)]
 pub struct App {
     pub profiles: Vec<ProfileEntry>,
-    pub selected: usize,
+    pub cursor: usize,
+    pub active: Option<usize>,
+    pub profile_id: String,
     pub volume: u8,
     pub paused: bool,
     pub listener_error: Option<String>,
@@ -31,27 +33,27 @@ pub struct App {
 }
 
 pub fn new(profiles: Vec<ProfileEntry>, cfg: &Config) -> App {
-    let mut notice: Option<String> = None;
-    let selected_idx_res = if !profiles.is_empty() {
-        if let Some(idx) = profiles.iter().position(|p| p.id == cfg.profile) {
-            idx
-        } else {
-            if let Some(first) = profiles.first() {
-                notice = Some(format!(
-                    "Saved profile '{}' not found; using {}",
-                    cfg.profile, first.name
-                ));
-            } else {
-                notice = Some(format!("Saved profile '{}' not found", cfg.profile));
-            }
-            0
-        }
+    let (cursor, profile_id, notice) = if profiles.is_empty() {
+        (0, cfg.profile.clone(), None)
+    } else if let Some(idx) = profiles.iter().position(|p| p.id == cfg.profile) {
+        (idx, cfg.profile.clone(), None)
     } else {
-        0
+        let first = &profiles[0];
+        (
+            0,
+            first.id.clone(),
+            Some(format!(
+                "Saved profile '{}' not found; using {}",
+                cfg.profile, first.name
+            )),
+        )
     };
+
     App {
         profiles,
-        selected: selected_idx_res,
+        cursor,
+        active: None,
+        profile_id,
         volume: cfg.volume,
         paused: false,
         listener_error: None,
@@ -63,32 +65,26 @@ pub fn new(profiles: Vec<ProfileEntry>, cfg: &Config) -> App {
 pub fn on_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<AudioCmd> {
     match code {
         KeyCode::Up | KeyCode::Char('k') => {
-            if app.profiles.is_empty() {
-                return None;
-            }
-            if app.selected == 0 {
-                return None;
-            }
-            let old = app.selected;
-            app.selected -= 1;
-            if app.selected != old {
-                return Some(AudioCmd::SetProfile(app.selected));
+            if app.cursor > 0 {
+                app.cursor -= 1;
             }
             None
         }
         KeyCode::Down | KeyCode::Char('j') => {
+            if !app.profiles.is_empty() && app.cursor < app.profiles.len() - 1 {
+                app.cursor += 1;
+            }
+            None
+        }
+        KeyCode::Enter => {
             if app.profiles.is_empty() {
                 return None;
             }
-            if app.selected >= app.profiles.len() - 1 {
+            if let Some(entry) = app.profiles.iter().find(|p| p.downloading) {
+                app.notice = Some(format!("Download in progress: {}", entry.name));
                 return None;
             }
-            let old = app.selected;
-            app.selected += 1;
-            if app.selected != old {
-                return Some(AudioCmd::SetProfile(app.selected));
-            }
-            None
+            Some(AudioCmd::Activate(app.cursor))
         }
         KeyCode::Left | KeyCode::Char('-') => {
             let old = app.volume;
@@ -135,22 +131,22 @@ impl App {
     }
 
     pub fn config(&self) -> Config {
-        if self.profiles.is_empty() {
-            return Config::default();
-        }
         Config {
-            profile: self.profiles[self.selected].id.clone(),
+            profile: self.profile_id.clone(),
             volume: self.volume,
         }
     }
 
-    pub fn on_notice(&mut self, n: Notice) {
+    /// Returns true when the caller should save the config.
+    pub fn on_notice(&mut self, n: Notice) -> bool {
         match n {
             Notice::ListenerFailed(e) => {
                 self.listener_error = Some(e);
+                false
             }
             Notice::Warn(e) => {
                 self.notice = Some(e);
+                false
             }
             Notice::Downloading(id) => {
                 let name = self
@@ -163,6 +159,7 @@ impl App {
                     entry.downloading = true;
                 }
                 self.notice = Some(format!("Downloading {name}…"));
+                false
             }
             Notice::Downloaded(id) => {
                 let name = self
@@ -176,6 +173,7 @@ impl App {
                     entry.downloading = false;
                 }
                 self.notice = Some(format!("Downloaded {name}"));
+                false
             }
             Notice::DownloadFailed { id, error } => {
                 let name = self
@@ -188,13 +186,26 @@ impl App {
                     entry.downloading = false;
                 }
                 self.notice = Some(format!("Could not download {name}: {error}"));
+                false
+            }
+            Notice::Activated { index, user } => {
+                if self.profiles.get(index).is_none() {
+                    return false;
+                }
+                self.active = Some(index);
+                if !user {
+                    return false;
+                }
+                self.profile_id = self.profiles[index].id.clone();
+                self.notice = Some(format!("Loaded {}", self.profiles[index].name));
+                true
             }
         }
     }
 }
 
-pub fn on_notice(app: &mut App, n: Notice) {
-    app.on_notice(n);
+pub fn on_notice(app: &mut App, n: Notice) -> bool {
+    app.on_notice(n)
 }
 
 pub fn config(app: &App) -> Config {
@@ -286,11 +297,16 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App) {
             } else {
                 ""
             };
-            let marker = if idx == app.selected { "▸ " } else { "  " };
-            let text = format!("{marker}{}{suffix}", entry.name);
-            let style = if idx == app.selected {
+            let cursor_marker = if idx == app.cursor { "▸" } else { " " };
+            let active_marker = if app.active == Some(idx) { "♪" } else { " " };
+            let text = format!("{cursor_marker}{active_marker} {}{suffix}", entry.name);
+            let style = if idx == app.cursor {
                 Style::default()
                     .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            } else if app.active == Some(idx) {
+                Style::default()
+                    .fg(Color::Green)
                     .add_modifier(Modifier::BOLD)
             } else if entry.downloading {
                 Style::default().fg(Color::Yellow)
@@ -318,7 +334,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App) {
         .highlight_symbol("");
     let mut state = ratatui::widgets::ListState::default();
     if !app.profiles.is_empty() {
-        state.select(Some(app.selected));
+        state.select(Some(app.cursor));
     }
     frame.render_stateful_widget(list, chunks[3], &mut state);
 
@@ -334,9 +350,15 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App) {
         frame.render_widget(empty, chunks[4]);
     }
 
-    let footer = Paragraph::new("↑↓ profile  ←→ volume  space pause  p preview  q quit")
+    let footer = Paragraph::new("↑↓ browse  enter load  ←→ volume  space pause  p preview  q quit")
         .style(Style::default().fg(Color::Reset));
     frame.render_widget(footer, chunks[5]);
+}
+
+fn save(app: &App, cfg_path: &Option<PathBuf>) -> Option<String> {
+    cfg_path
+        .as_ref()
+        .and_then(|p| crate::config::save(p, &app.config()).err())
 }
 
 pub fn run(
@@ -354,11 +376,9 @@ pub fn run(
                     let cmd = on_key(&mut app, key.code, key.modifiers);
                     if let Some(c) = cmd {
                         let _ = audio.send(c);
-                        if matches!(c, AudioCmd::SetProfile(_) | AudioCmd::SetVolume(_)) {
-                            if let Some(ref p) = cfg_path {
-                                if let Err(e) = crate::config::save(p, &App::config(&app)) {
-                                    app.notice = Some(e);
-                                }
+                        if matches!(c, AudioCmd::SetVolume(_)) {
+                            if let Some(e) = save(&app, &cfg_path) {
+                                app.notice = Some(e);
                             }
                         }
                     }
@@ -366,7 +386,11 @@ pub fn run(
             }
         }
         while let Ok(n) = notices.try_recv() {
-            on_notice(&mut app, n);
+            if on_notice(&mut app, n) {
+                if let Some(e) = save(&app, &cfg_path) {
+                    app.notice = Some(e);
+                }
+            }
         }
         if app.quit {
             break;
@@ -423,7 +447,8 @@ mod tests {
             volume: 60,
         };
         let a = new(profiles, &cfg);
-        assert_eq!(a.selected, 0);
+        assert_eq!(a.cursor, 0);
+        assert_eq!(a.profile_id, "mx-blue");
         assert!(a.notice.as_ref().unwrap().contains("gone"));
     }
 
@@ -435,27 +460,97 @@ mod tests {
             volume: 60,
         };
         let a = new(profiles, &cfg);
-        assert_eq!(a.selected, 3);
+        assert_eq!(a.cursor, 3);
+        assert_eq!(a.profile_id, "topre");
     }
 
     #[test]
-    fn down_switches_profile() {
+    fn down_moves_cursor_only() {
+        let mut a = app();
+        assert_eq!(on_key(&mut a, KeyCode::Down, KeyModifiers::NONE), None);
+        assert_eq!(a.cursor, 1);
+        assert!(a.active.is_none());
+
+        a.cursor = 3;
+        assert_eq!(on_key(&mut a, KeyCode::Down, KeyModifiers::NONE), None);
+        assert_eq!(a.cursor, 3);
+    }
+
+    #[test]
+    fn up_moves_cursor_only() {
+        let mut a = app();
+        a.cursor = 2;
+        assert_eq!(on_key(&mut a, KeyCode::Up, KeyModifiers::NONE), None);
+        assert_eq!(a.cursor, 1);
+        assert!(a.active.is_none());
+    }
+
+    #[test]
+    fn enter_activates_cursor() {
         let mut a = app();
         assert_eq!(
-            on_key(&mut a, KeyCode::Down, KeyModifiers::NONE),
-            Some(AudioCmd::SetProfile(1))
+            on_key(&mut a, KeyCode::Enter, KeyModifiers::NONE),
+            Some(AudioCmd::Activate(0))
         );
-        // move to last
+        a.cursor = 2;
+        assert_eq!(
+            on_key(&mut a, KeyCode::Enter, KeyModifiers::NONE),
+            Some(AudioCmd::Activate(2))
+        );
+    }
+
+    #[test]
+    fn enter_rejected_during_download() {
         let mut a = app();
-        a.selected = 3;
-        assert_eq!(on_key(&mut a, KeyCode::Down, KeyModifiers::NONE), None);
+        a.profiles[1].downloading = true;
+        assert_eq!(on_key(&mut a, KeyCode::Enter, KeyModifiers::NONE), None);
+        assert!(a.notice.as_ref().unwrap().contains("Download in progress"));
+    }
+
+    #[test]
+    fn activated_user_saves_config() {
+        let mut a = app();
+        assert!(on_notice(
+            &mut a,
+            Notice::Activated {
+                index: 2,
+                user: true
+            }
+        ));
+        assert_eq!(a.active, Some(2));
+        assert_eq!(a.profile_id, "mx-brown");
+        assert!(a.notice.as_ref().unwrap().contains("Loaded"));
+    }
+
+    #[test]
+    fn activated_startup_does_not_save() {
+        let mut a = app();
+        assert!(!on_notice(
+            &mut a,
+            Notice::Activated {
+                index: 0,
+                user: false
+            }
+        ));
+        assert_eq!(a.active, Some(0));
+        assert_eq!(a.profile_id, "mx-blue");
+    }
+
+    #[test]
+    fn warn_preserves_active_and_preference() {
+        let mut a = app();
+        a.active = Some(1);
+        a.profile_id = "mx-red".into();
+        assert!(!on_notice(&mut a, Notice::Warn("boom".into())));
+        assert_eq!(a.active, Some(1));
+        assert_eq!(a.profile_id, "mx-red");
+        assert!(a.notice.as_ref().unwrap().contains("boom"));
     }
 
     #[test]
     fn volume_steps_and_clamps() {
         let mut a = app();
         assert_eq!(a.volume, 60);
-        // 4 times to reach 100
         assert_eq!(
             on_key(&mut a, KeyCode::Right, KeyModifiers::NONE),
             Some(AudioCmd::SetVolume(70))
@@ -473,7 +568,7 @@ mod tests {
             Some(AudioCmd::SetVolume(100))
         );
         assert_eq!(on_key(&mut a, KeyCode::Right, KeyModifiers::NONE), None);
-        // left
+
         let mut a = app();
         for _ in 0..10 {
             let _ = on_key(&mut a, KeyCode::Left, KeyModifiers::NONE);
@@ -549,6 +644,18 @@ mod tests {
     }
 
     #[test]
+    fn markers_show_cursor_and_active() {
+        let mut a = app();
+        a.active = Some(1);
+        let backend = TestBackend::new(60, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal.draw(|f| draw(f, &a)).unwrap();
+        let text = buffer_text(terminal.backend().buffer());
+        assert!(text.contains("▸"), "{text}");
+        assert!(text.contains("♪"), "{text}");
+    }
+
+    #[test]
     fn renders_optional_download_marker() {
         let mut a = app();
         a.profiles
@@ -566,11 +673,11 @@ mod tests {
         a.profiles
             .push(entry("mx-black", "Cherry MX Black (PBT)", true, false));
 
-        on_notice(&mut a, Notice::Downloading("mx-black".into()));
+        assert!(!on_notice(&mut a, Notice::Downloading("mx-black".into())));
         assert!(a.profiles.last().unwrap().downloading);
         assert!(a.notice.as_ref().unwrap().contains("Downloading"));
 
-        on_notice(&mut a, Notice::Downloaded("mx-black".into()));
+        assert!(!on_notice(&mut a, Notice::Downloaded("mx-black".into())));
         let entry = a.profiles.last().unwrap();
         assert!(entry.available);
         assert!(!entry.downloading);
@@ -587,13 +694,13 @@ mod tests {
             available: false,
             downloading: true,
         });
-        on_notice(
+        assert!(!on_notice(
             &mut a,
             Notice::DownloadFailed {
                 id: "mx-black".into(),
                 error: "offline".into(),
             },
-        );
+        ));
         assert!(!a.profiles.last().unwrap().downloading);
         assert!(a.notice.as_ref().unwrap().contains("offline"));
     }
@@ -604,7 +711,7 @@ mod tests {
             .map(|i| entry(&format!("p{i}"), &format!("Pack {i}"), i >= 4, i < 4))
             .collect();
         let mut a = new(entries, &Config::default());
-        a.selected = 17;
+        a.cursor = 17;
         let backend = TestBackend::new(60, 24);
         let mut terminal = Terminal::new(backend).unwrap();
         terminal.draw(|f| draw(f, &a)).unwrap();

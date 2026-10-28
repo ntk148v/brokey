@@ -29,12 +29,13 @@ sudo apt install libasound2-dev libx11-dev libxtst-dev
 
 | Key                  | Action                                      |
 | -------------------- | ------------------------------------------- |
-| `↑` / `k`            | Select profile (downloads it first if optional) |
-| `↓` / `j`            | Select profile (downloads it first if optional) |
+| `↑` / `k`            | Move cursor up (does not change the sound)  |
+| `↓` / `j`            | Move cursor down (does not change the sound)|
+| `Enter`              | Load the cursor profile; downloads it first if optional |
 | `←` / `-`            | Volume −10% (0–100)                         |
 | `→` / `+` / `=`      | Volume +10% (0–100)                         |
 | `Space`              | Pause/resume                                |
-| `p`                  | Preview the current profile                 |
+| `p`                  | Preview the active profile                  |
 | `q`, `Esc`, `Ctrl-C` | Quit                                        |
 
 ## Config
@@ -48,7 +49,9 @@ profile = "mx-blue"
 volume = 60
 ```
 
-Volume is an integer 0–100. Preferences save automatically on change.
+Volume is an integer 0–100. Volume saves immediately. The profile preference
+saves only after a profile is successfully loaded with `Enter`, so browsing the
+list does not rewrite your saved choice.
 
 ## Profiles
 
@@ -63,11 +66,18 @@ These are compiled into the binary and work with no network:
 
 ### Optional profiles (downloaded on first use)
 
-These appear in the same list. Selecting one downloads it from this
-repository's `assets/sounds-optional/` directory and caches it at
+These appear in the same list. Move the cursor with `↑`/`↓`; the pack only
+changes when you press `Enter`. If the cursor is on an optional pack that is not
+downloaded, `Enter` downloads it from this repository's
+`assets/sounds-optional/` directory and caches it at
 `<config dir>/brokey/packs/<id>/`. Rows that are not downloaded show a `↓`
 marker; a download in progress shows `…`. Until a download finishes, the
 previous pack keeps playing.
+
+A saved optional profile that is not cached falls back to the first embedded
+pack at startup instead of downloading silently; the cursor stays on the saved
+profile and `Enter` fetches it. The `▸` marker shows the cursor and `♪` shows
+the pack actually playing.
 
 - `mx-black` "Cherry MX Black (PBT)"
 - `mx-black-abs` "Cherry MX Black (ABS)"
