@@ -4,6 +4,7 @@ use std::thread;
 pub mod audio;
 pub mod config;
 pub mod listener;
+pub mod pack;
 pub mod profiles;
 pub mod ui;
 
