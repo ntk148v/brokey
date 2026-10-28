@@ -62,6 +62,12 @@ Volume is an integer 0–100. Preferences save automatically on change.
 - `eg-oreo` "Everglide Oreo"
 - `eg-crystal-purple` "Everglide Crystal Purple"
 - `turquoise` "Turquoise Tealios"
+- `mx-black-abs` "Cherry MX Black (ABS)"
+
+Built-in profiles use real per-key recordings: letters, digits, common
+punctuation, Space, Enter, Backspace, and Tab each have their own sample where
+the source pack provides one. Keys without a recording, and the preview key,
+rotate through natural fallback takes from the same pack.
 
 ## Custom sound packs
 
@@ -70,4 +76,5 @@ Put custom packs in `<config dir>/brokey/sounds/<name>/`.
 
 The bundled sounds are real recordings from MIT-licensed packs; see `assets/sounds/CREDITS.md` for provenance and attribution.
 
-Brokey only knows _that_ a key was pressed, never _which_ character; nothing is recorded or stored.
+Brokey uses the keycode only to choose a sound; it does not build, log, or store
+text. No audio is recorded.
