@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "profile": "holy-panda",
+  "source": {
+    "repo": "https://github.com/cjlangan/MechSim",
+    "dir": "audio/holy-pandas",
+    "license": "MIT"
+  },
+  "sample_rate": 44100,
+  "channels": 1,
+  "total_samples": 33926,
+  "audio": "sound.flac",
+  "keys": {
+    "14": [
+      0,
+      3010
+    ],
+    "28": [
+      3010,
+      2915
+    ],
+    "57": [
+      5925,
+      12936
+    ]
+  },
+  "defaults": [
+    [
+      18861,
+      3013
+    ],
+    [
+      21874,
+      3013
+    ],
+    [
+      24887,
+      3013
+    ],
+    [
+      27900,
+      3013
+    ],
+    [
+      30913,
+      3013
+    ]
+  ]
+}

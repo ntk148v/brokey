@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "profile": "turquoise",
+  "source": {
+    "repo": "https://github.com/cjlangan/MechSim",
+    "dir": "audio/turquoise",
+    "license": "MIT"
+  },
+  "sample_rate": 44100,
+  "channels": 1,
+  "total_samples": 29011,
+  "audio": "sound.flac",
+  "keys": {
+    "14": [
+      0,
+      3195
+    ],
+    "28": [
+      3195,
+      3459
+    ],
+    "57": [
+      6654,
+      2882
+    ]
+  },
+  "defaults": [
+    [
+      9536,
+      3895
+    ],
+    [
+      13431,
+      3895
+    ],
+    [
+      17326,
+      3895
+    ],
+    [
+      21221,
+      3895
+    ],
+    [
+      25116,
+      3895
+    ]
+  ]
+}
