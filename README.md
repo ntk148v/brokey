@@ -4,6 +4,8 @@ Real thock. Fake keyboard. Zero budget.
 
 Brokey plays mechanical-switch sounds on every global keypress, with a small terminal UI.
 
+![brokey demo](assets/demo.gif)
+
 ## Install / run
 
 ```bash
@@ -105,7 +107,14 @@ takes, so that pack uses its defaults for every key.
 ## Custom sound packs
 
 Put custom packs in `<config dir>/brokey/sounds/<name>/`.
-`<name>/press.wav` is required; optional `space.wav`. The directory name becomes the profile id and name. A pack needs a file with stem `press`, in WAV or FLAC format. Packs that collide with any catalog id or fail to decode are skipped with a warning shown in the UI.
+`<name>/press.wav` is required; optional `space.wav` and `release.wav` (played when a key comes back up). The directory name becomes the profile id and name. A pack needs a file with stem `press`, in WAV or FLAC format. Packs that collide with any catalog id or fail to decode are skipped with a warning shown in the UI.
+
+A folder can instead use the bundled per-key format: `config.json` plus a mono
+`sound.flac`, like the folders under `assets/sounds/`. Copying a downloaded
+pack from `<config dir>/brokey/packs/` works if you give the folder a new name. The manifest may add an
+optional `"release": [[start, len], ...]` list of key-up clips.
+
+Each sound plays at a slightly random speed (±3%) so repeated keys don't sound identical.
 
 The bundled and optional sounds are real recordings from MIT-licensed packs; see `assets/CREDITS.md` for provenance and attribution.
 
