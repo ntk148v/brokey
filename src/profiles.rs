@@ -1,5 +1,5 @@
-use crate::audio::Clip;
 use crate::audio::decode;
+use crate::audio::Clip;
 use std::fs;
 use std::path::Path;
 
@@ -10,8 +10,6 @@ pub struct Profile {
     pub press: Clip,
     pub space: Option<Clip>,
 }
-
-
 
 pub fn builtins() -> Vec<Profile> {
     let p1_press = decode(include_bytes!("../assets/sounds/mx-blue/press.wav").to_vec())
@@ -78,7 +76,11 @@ pub fn load_user(dir: &Path) -> (Vec<Profile>, Vec<String>) {
         if !p.is_dir() {
             continue;
         }
-        let id = p.file_name().and_then(|s| s.to_str()).unwrap_or("").to_string();
+        let id = p
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_string();
         if id.is_empty() {
             continue;
         }
@@ -137,7 +139,12 @@ pub fn load_user(dir: &Path) -> (Vec<Profile>, Vec<String>) {
             }
             // else skip space, no warning
         }
-        profiles.push(Profile { id: id.clone(), name: id.clone(), press, space: space_clip });
+        profiles.push(Profile {
+            id: id.clone(),
+            name: id.clone(),
+            press,
+            space: space_clip,
+        });
     }
     profiles.sort_by(|a, b| a.id.cmp(&b.id));
     (profiles, warnings)
@@ -151,7 +158,10 @@ pub fn all(user_dir: Option<&Path>) -> (Vec<Profile>, Vec<String>) {
         for u in users {
             // check shadow
             if result.iter().any(|b| b.id == u.id) {
-                warnings.push(format!("Skipped sound pack '{}': conflicts with a built-in profile", u.id));
+                warnings.push(format!(
+                    "Skipped sound pack '{}': conflicts with a built-in profile",
+                    u.id
+                ));
                 continue;
             }
             result.push(u);
@@ -173,7 +183,15 @@ mod tests {
         let b = builtins();
         assert_eq!(b.len(), 4);
         let ids: Vec<String> = b.iter().map(|p| p.id.clone()).collect();
-        assert_eq!(ids, vec!["mx-blue".to_string(), "mx-red".to_string(), "mx-brown".to_string(), "topre".to_string()]);
+        assert_eq!(
+            ids,
+            vec![
+                "mx-blue".to_string(),
+                "mx-red".to_string(),
+                "mx-brown".to_string(),
+                "topre".to_string()
+            ]
+        );
         assert_eq!(b[0].name, "Cherry MX Blue");
         assert_eq!(b[1].name, "Cherry MX Red");
         assert_eq!(b[2].name, "Cherry MX Brown");

@@ -2,7 +2,7 @@ use crate::audio::AudioCmd;
 use crate::config::Config;
 use crate::Notice;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
-use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::layout::{Constraint, Direction, Layout, Margin};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, Gauge, List, ListItem, Paragraph};
 use std::io;
@@ -156,6 +156,16 @@ pub fn config(app: &App) -> Config {
 }
 
 pub fn draw(frame: &mut ratatui::Frame, app: &App) {
+    let area = frame.area();
+    let content_area = if area.width >= 4 && area.height >= 3 {
+        area.inner(Margin {
+            horizontal: 1,
+            vertical: 0,
+        })
+    } else {
+        area
+    };
+
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -166,9 +176,13 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App) {
             Constraint::Length(1),
             Constraint::Length(1),
         ])
-        .split(frame.area());
+        .split(content_area);
 
-    let title = Paragraph::new("Brokey — Real thock. Fake keyboard. Zero budget.");
+    let title = Paragraph::new("Brokey — Real thock. Fake keyboard. Zero budget.").style(
+        Style::default()
+            .fg(Color::Magenta)
+            .add_modifier(Modifier::BOLD),
+    );
     frame.render_widget(title, chunks[0]);
 
     let status_text = if let Some(err) = &app.listener_error {
@@ -178,46 +192,92 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App) {
     } else {
         "● Listening".to_string()
     };
-    let status = if app.listener_error.is_some() {
-        Paragraph::new(status_text).style(Style::default().fg(Color::Red))
+    let status_style = if app.listener_error.is_some() {
+        Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+    } else if app.paused {
+        Style::default().fg(Color::Yellow)
     } else {
-        Paragraph::new(status_text)
+        Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::BOLD)
     };
+    let status = Paragraph::new(status_text).style(status_style);
     frame.render_widget(status, chunks[1]);
 
+    let gauge_color = if app.volume >= 70 {
+        Color::Green
+    } else if app.volume >= 30 {
+        Color::Cyan
+    } else {
+        Color::LightYellow
+    };
     let gauge = Gauge::default()
         .block(
             Block::default()
                 .borders(Borders::ALL)
-                .title(format!("Volume {}%", app.volume)),
+                .title(format!("Volume {}%", app.volume))
+                .border_style(Style::default().fg(Color::DarkGray)),
         )
-        .gauge_style(Style::default().fg(Color::Cyan))
+        .gauge_style(
+            Style::default()
+                .fg(gauge_color)
+                .bg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        )
+        .use_unicode(true)
         .ratio((app.volume as f64) / 100.0);
     frame.render_widget(gauge, chunks[2]);
 
     let items: Vec<ListItem> = app
         .profiles
         .iter()
-        .map(|(_id, name)| ListItem::new(name.as_str()))
+        .enumerate()
+        .map(|(idx, (_id, name))| {
+            if idx == app.selected {
+                ListItem::new(format!("▸ {}", name.as_str())).style(
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                )
+            } else {
+                ListItem::new(format!("  {}", name.as_str()))
+            }
+        })
         .collect();
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL))
-        .highlight_style(Style::default().add_modifier(Modifier::REVERSED))
-        .highlight_symbol(">> ");
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Profiles")
+                .border_style(Style::default().fg(Color::DarkGray)),
+        )
+        .highlight_style(
+            Style::default()
+                .bg(Color::Cyan)
+                .fg(Color::Black)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("");
     let mut state = ratatui::widgets::ListState::default();
-    state.select(Some(app.selected));
+    if !app.profiles.is_empty() {
+        state.select(Some(app.selected));
+    }
     frame.render_stateful_widget(list, chunks[3], &mut state);
 
     if let Some(notice) = &app.notice {
-        let notice_para =
-            Paragraph::new(notice.as_str()).style(Style::default().fg(Color::Yellow));
+        let notice_para = Paragraph::new(notice.as_str()).style(
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        );
         frame.render_widget(notice_para, chunks[4]);
     } else {
         let empty = Paragraph::new("");
         frame.render_widget(empty, chunks[4]);
     }
 
-    let footer = Paragraph::new("↑↓ profile  ←→ volume  space pause  p preview  q quit");
+    let footer = Paragraph::new("↑↓ profile  ←→ volume  space pause  p preview  q quit")
+        .style(Style::default().fg(Color::Gray));
     frame.render_widget(footer, chunks[5]);
 }
 
@@ -317,7 +377,10 @@ mod tests {
     #[test]
     fn down_switches_profile() {
         let mut a = app();
-        assert_eq!(on_key(&mut a, KeyCode::Down, KeyModifiers::NONE), Some(AudioCmd::SetProfile(1)));
+        assert_eq!(
+            on_key(&mut a, KeyCode::Down, KeyModifiers::NONE),
+            Some(AudioCmd::SetProfile(1))
+        );
         // move to last
         let mut a = app();
         a.selected = 3;
@@ -329,10 +392,22 @@ mod tests {
         let mut a = app();
         assert_eq!(a.volume, 60);
         // 4 times to reach 100
-        assert_eq!(on_key(&mut a, KeyCode::Right, KeyModifiers::NONE), Some(AudioCmd::SetVolume(70)));
-        assert_eq!(on_key(&mut a, KeyCode::Right, KeyModifiers::NONE), Some(AudioCmd::SetVolume(80)));
-        assert_eq!(on_key(&mut a, KeyCode::Right, KeyModifiers::NONE), Some(AudioCmd::SetVolume(90)));
-        assert_eq!(on_key(&mut a, KeyCode::Right, KeyModifiers::NONE), Some(AudioCmd::SetVolume(100)));
+        assert_eq!(
+            on_key(&mut a, KeyCode::Right, KeyModifiers::NONE),
+            Some(AudioCmd::SetVolume(70))
+        );
+        assert_eq!(
+            on_key(&mut a, KeyCode::Right, KeyModifiers::NONE),
+            Some(AudioCmd::SetVolume(80))
+        );
+        assert_eq!(
+            on_key(&mut a, KeyCode::Right, KeyModifiers::NONE),
+            Some(AudioCmd::SetVolume(90))
+        );
+        assert_eq!(
+            on_key(&mut a, KeyCode::Right, KeyModifiers::NONE),
+            Some(AudioCmd::SetVolume(100))
+        );
         assert_eq!(on_key(&mut a, KeyCode::Right, KeyModifiers::NONE), None);
         // left
         let mut a = app();
@@ -346,14 +421,23 @@ mod tests {
     #[test]
     fn space_toggles_pause() {
         let mut a = app();
-        assert_eq!(on_key(&mut a, KeyCode::Char(' '), KeyModifiers::NONE), Some(AudioCmd::SetPaused(true)));
-        assert_eq!(on_key(&mut a, KeyCode::Char(' '), KeyModifiers::NONE), Some(AudioCmd::SetPaused(false)));
+        assert_eq!(
+            on_key(&mut a, KeyCode::Char(' '), KeyModifiers::NONE),
+            Some(AudioCmd::SetPaused(true))
+        );
+        assert_eq!(
+            on_key(&mut a, KeyCode::Char(' '), KeyModifiers::NONE),
+            Some(AudioCmd::SetPaused(false))
+        );
     }
 
     #[test]
     fn p_previews() {
         let mut a = app();
-        assert_eq!(on_key(&mut a, KeyCode::Char('p'), KeyModifiers::NONE), Some(AudioCmd::Preview));
+        assert_eq!(
+            on_key(&mut a, KeyCode::Char('p'), KeyModifiers::NONE),
+            Some(AudioCmd::Preview)
+        );
     }
 
     #[test]

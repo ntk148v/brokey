@@ -63,17 +63,29 @@ mod tests {
     #[test]
     fn classify_press_and_space() {
         let mut held = vec![];
-        assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), Some(SoundKind::Press));
-        assert_eq!(classify(&mut held, &KeyPress(Key::Space)), Some(SoundKind::Space));
+        assert_eq!(
+            classify(&mut held, &KeyPress(Key::KeyA)),
+            Some(SoundKind::Press)
+        );
+        assert_eq!(
+            classify(&mut held, &KeyPress(Key::Space)),
+            Some(SoundKind::Space)
+        );
     }
 
     #[test]
     fn classify_ignores_auto_repeat() {
         let mut held = vec![];
-        assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), Some(SoundKind::Press));
+        assert_eq!(
+            classify(&mut held, &KeyPress(Key::KeyA)),
+            Some(SoundKind::Press)
+        );
         assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), None);
         assert_eq!(classify(&mut held, &KeyRelease(Key::KeyA)), None);
-        assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), Some(SoundKind::Press));
+        assert_eq!(
+            classify(&mut held, &KeyPress(Key::KeyA)),
+            Some(SoundKind::Press)
+        );
     }
 
     #[test]

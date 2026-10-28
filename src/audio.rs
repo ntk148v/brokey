@@ -22,7 +22,12 @@ pub enum AudioCmd {
     SetPaused(bool),
 }
 
-pub fn spawn(profiles: Vec<Profile>, selected: usize, volume: u8, notices: Sender<Notice>) -> Sender<AudioCmd> {
+pub fn spawn(
+    profiles: Vec<Profile>,
+    selected: usize,
+    volume: u8,
+    notices: Sender<Notice>,
+) -> Sender<AudioCmd> {
     let (tx, rx) = std::sync::mpsc::channel::<AudioCmd>();
     std::thread::spawn(move || {
         let mut stream = match OutputStreamBuilder::open_default_stream() {
@@ -48,7 +53,9 @@ pub fn spawn(profiles: Vec<Profile>, selected: usize, volume: u8, notices: Sende
                         None => continue,
                     };
                     let clip = match k {
-                        SoundKind::Space => profile.space.as_ref().unwrap_or(&profile.press).clone(),
+                        SoundKind::Space => {
+                            profile.space.as_ref().unwrap_or(&profile.press).clone()
+                        }
                         SoundKind::Press => profile.press.clone(),
                     };
                     stream.mixer().add(clip.amplify(volume_val as f32 / 100.0));

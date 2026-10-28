@@ -80,7 +80,10 @@ mod tests {
     fn save_then_load_roundtrips() {
         let td = tempdir().unwrap();
         let p = td.path().join("config.toml");
-        let cfg = Config { profile: "topre".into(), volume: 30 };
+        let cfg = Config {
+            profile: "topre".into(),
+            volume: 30,
+        };
         save(&p, &cfg).unwrap();
         let (loaded, w) = load(&p);
         assert_eq!(loaded, cfg);
