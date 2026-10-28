@@ -2,7 +2,7 @@ use crate::audio::AudioCmd;
 use crate::config::Config;
 use crate::Notice;
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
-use ratatui::layout::{Constraint, Direction, Layout, Margin};
+use ratatui::layout::{Alignment, Constraint, Direction, Flex, Layout, Margin};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::widgets::{Block, Borders, Gauge, List, ListItem, Paragraph};
 use std::io;
@@ -206,6 +206,14 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App) {
     } else {
         area
     };
+    // Centered column sized to content, so wide terminals don't leave a blank right side.
+    let content_height = 9 + app.profiles.len() as u16;
+    let [content_area] = Layout::horizontal([Constraint::Max(72)])
+        .flex(Flex::Center)
+        .areas(content_area);
+    let [content_area] = Layout::vertical([Constraint::Max(content_height)])
+        .flex(Flex::Center)
+        .areas(content_area);
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -219,11 +227,13 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App) {
         ])
         .split(content_area);
 
-    let title = Paragraph::new("Brokey — Real thock. Fake keyboard. Zero budget.").style(
-        Style::default()
-            .fg(Color::Magenta)
-            .add_modifier(Modifier::BOLD),
-    );
+    let title = Paragraph::new("Brokey — Real thock. Fake keyboard. Zero budget.")
+        .alignment(Alignment::Center)
+        .style(
+            Style::default()
+                .fg(Color::Magenta)
+                .add_modifier(Modifier::BOLD),
+        );
     frame.render_widget(title, chunks[0]);
 
     let status_text = if let Some(err) = &app.listener_error {
@@ -242,7 +252,9 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App) {
             .fg(Color::Green)
             .add_modifier(Modifier::BOLD)
     };
-    let status = Paragraph::new(status_text).style(status_style);
+    let status = Paragraph::new(status_text)
+        .alignment(Alignment::Center)
+        .style(status_style);
     frame.render_widget(status, chunks[1]);
 
     let gauge_color = if app.volume >= 70 {
@@ -323,11 +335,13 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App) {
     frame.render_stateful_widget(list, chunks[3], &mut state);
 
     if let Some(notice) = &app.notice {
-        let notice_para = Paragraph::new(notice.as_str()).style(
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        );
+        let notice_para = Paragraph::new(notice.as_str())
+            .alignment(Alignment::Center)
+            .style(
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            );
         frame.render_widget(notice_para, chunks[4]);
     } else {
         let empty = Paragraph::new("");
@@ -335,6 +349,7 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App) {
     }
 
     let footer = Paragraph::new("↑↓ browse  enter load  ←→ volume  space pause  p preview  q quit")
+        .alignment(Alignment::Center)
         .style(Style::default().fg(Color::Reset));
     frame.render_widget(footer, chunks[5]);
 }
@@ -619,6 +634,18 @@ mod tests {
         terminal.draw(|f| draw(f, &a)).unwrap();
         let text = buffer_text(terminal.backend().buffer());
         assert!(text.contains("Not listening: denied"));
+    }
+
+    #[test]
+    fn centers_content_in_wide_terminal() {
+        let a = app();
+        let backend = TestBackend::new(200, 50);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal.draw(|f| draw(f, &a)).unwrap();
+        let text = buffer_text(terminal.backend().buffer());
+        let row = text.lines().find(|l| l.contains("Profiles")).unwrap();
+        let col = row.chars().position(|c| c == '┌').unwrap();
+        assert!(col > 50, "list not centered: {row}");
     }
 
     #[test]
