@@ -52,8 +52,10 @@ fn main() {
     if let Err(e) = listener::listen(move |k| {
         let _ = audio_tx.send(audio::AudioCmd::Sound(k));
     }) {
+        // rdev cannot be restarted, so keep the TUI alive: it shows the reason
+        // and the user quits with q. The UI thread terminates the process,
+        // because this thread stays parked inside `rdev::listen` otherwise.
         let _ = notice_tx.send(Notice::ListenerFailed(e));
         let _ = ui_handle.join();
-        std::process::exit(1);
     }
 }

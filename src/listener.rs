@@ -1,6 +1,4 @@
 use rdev::{EventType, Key};
-use std::cell::RefCell;
-use std::rc::Rc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SoundKind {
@@ -43,12 +41,9 @@ const HINT: &str = "could not install keyboard hook";
 const HINT: &str = "check OS permissions for global keyboard input";
 
 pub fn listen(mut on_sound: impl FnMut(SoundKind) + 'static) -> Result<(), String> {
-    let held: Rc<RefCell<Vec<Key>>> = Rc::new(RefCell::new(Vec::new()));
-    let held_clone = held.clone();
+    let mut held: Vec<Key> = Vec::new();
     rdev::listen(move |event| {
-        let mut held_ref = held_clone.borrow_mut();
-        if let Some(k) = classify(&mut held_ref, &event.event_type) {
-            drop(held_ref);
+        if let Some(k) = classify(&mut held, &event.event_type) {
             on_sound(k);
         }
     })
