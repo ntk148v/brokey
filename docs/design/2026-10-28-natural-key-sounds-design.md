@@ -16,7 +16,9 @@ Cherry MX Black ABS pack is a 2.6 MB OGG sprite plus a 7 KB config.
 
 ## Goals
 
-- Play a distinct, real recording per typing key for every built-in profile.
+- Play a real per-key recording wherever the source pack provides one, with
+  natural fallback takes for keys the source does not cover, for every
+  built-in profile.
 - Add the Cherry MX Black ABS pack the user requested.
 - Keep the repository and binary small: roughly 3 MB of audio for 11 profiles
   instead of ~30 MB of source sprites.
@@ -81,6 +83,9 @@ chosen over MP3/AAC to avoid codec delay and over OGG because the available
 ffmpeg has no Vorbis encoder. MP3 at 96 kbps would be ~78 KB per pack but can
 shift clip starts; lossless offsets are worth the extra ~200 KB.
 
+After regenerating, delete the old `press.wav` and `space.wav` from each
+built-in directory so only `sound.flac` and `config.json` are committed.
+
 ### Source packs
 
 All 11 built-ins come from `cjlangan/MechSim` (MIT), which hosts the same
@@ -132,13 +137,15 @@ For each profile:
 2. Handle both config shapes:
    - `key_define_type: "single"`: slice `sound.ogg` by the `[start_ms,
      duration_ms]` ranges in `defines`.
-   - `key_define_type: "multi"`: load the file named by each `defines` entry;
-     `GENERIC_R*` files become `defaults`.
+   - `key_define_type: "multi"`: load the file named by each `defines` entry.
+     Expand `sound` patterns such as `GENERIC_R{0-4}.mp3`; those generic takes
+     become `defaults`.
 3. Decode each clip to mono 44.1 kHz f32 with ffmpeg, apply a 2 ms fade-in and
-   6 ms fade-out, and append it to the pack buffer in ascending scan-code
-   order.
+   6 ms fade-out (each clamped to at most half the clip length), and append it
+   to the pack buffer in ascending scan-code order.
 4. Apply one gain across the whole pack so the peak is −2 dBFS (preserves
-   relative loudness between keys), then encode `sound.flac` with
+   relative loudness between keys; skip the gain if the pack is silent), then
+   encode `sound.flac` with
    `-c:a flac -compression_level 8 -sample_fmt s16`.
 5. Write `config.json` with offsets computed from the concatenated buffer and
    print per-pack and total sizes.
@@ -173,13 +180,21 @@ pub struct Profile {
 }
 ```
 
-- `builtins()` uses `include_bytes!` for each `sound.flac` and `config.json`.
+- `builtins()` uses `include_bytes!` for each `sound.flac` and `config.json`
+  and returns `(Vec<Profile>, Vec<String>)` so manifest warnings can reach the
+  UI; `all()` merges those warnings with custom-pack warnings.
 - `load_user(dir)` keeps the current discovery rules: required `press.*`,
   optional `space.*`, supported extensions unchanged, invalid packs warn and
-  are skipped, and custom ids cannot shadow built-ins.
+  are skipped, and custom ids cannot shadow built-ins. It still decodes each
+  candidate once to validate it, then stores the bytes; the audio thread
+  decodes again when the pack is selected. Custom packs are small, so the
+  double decode is acceptable and preserves today's startup warnings.
 - `all(user_dir)` still returns built-ins followed by user packs.
 - A new module `src/pack.rs` owns manifest parsing and validation so
   `profiles.rs` stays about discovery.
+- `serde_json = "1"` is added to `[dependencies]`; `serde` is already present.
+- `audio::Clip` and `audio::decode` are removed; all audio decoding moves to
+  `src/pack.rs`.
 
 ### Manifest and pack decoding (`src/pack.rs`)
 
@@ -210,8 +225,12 @@ pub struct LoadedPack {
 - `Manifest::parse(bytes)` deserializes with serde and rejects
   `version != 1`, zero sample rate, non-mono built-ins, empty defaults, and any
   range whose end exceeds `total_samples` or whose length is zero.
+  `from_builtin` additionally checks that the decoded stream's rate, channel
+  count, and length match the manifest.
 - `LoadedPack::from_builtin(sprite, manifest)` decodes the FLAC once into a
-  shared `Arc<Vec<f32>>` and builds clips that borrow ranges of it.
+  shared `Arc<Vec<f32>>` and builds clips that borrow ranges of it. In rodio
+  0.21 `Decoder` is a `Source<Item = Sample>` where `Sample` is `f32`, so the
+  decoded samples collect directly into `Vec<f32>`.
 - `LoadedPack::from_custom(press, space)` decodes each file separately (its own
   rate/channels are preserved), maps scan code 57 to the space clip when
   present, and sets `defaults` to the press clip. Custom packs therefore get
@@ -219,22 +238,26 @@ pub struct LoadedPack {
 - `LoadedPack::clip_for(scan_code)` returns the specific clip or
   `next_default()`; `next_default()` round-robins `defaults` with a wrapping
   counter (no RNG dependency).
-- Decoding failures produce an error string; the caller warns and skips the
-  profile instead of panicking.
+- Decoding failures produce an error string; the caller warns instead of
+  panicking (custom packs are skipped at load, built-ins keep the previous
+  pack active at selection).
 
 ### Audio thread (`src/audio.rs`)
 
 - `AudioCmd::Sound` now carries a `u16` scan code; `SoundKind` is removed.
 - The thread keeps the current `LoadedPack` and reloads it on `SetProfile`.
   Only the active pack is decoded, keeping memory at ~1.7 MB plus the encoded
-  bytes.
-- Playback uses `OutputStreamHandle::play_raw` with
-  `SamplesBuffer::new(channels, rate, slice).amplify(volume)` so overlapping
-  keypresses mix instead of queueing behind each other. Volume changes apply
-  to subsequent clips.
-- Pause is handled by ignoring `Sound` and `Preview` commands while paused.
-  Profile switches still load; resume simply starts accepting sounds again.
-  This replaces the sink-level pause so `play_raw` can be used.
+  bytes. The initially selected profile is decoded before the command loop
+  starts; if that fails, warn and leave no pack active until the user selects
+  another profile.
+- Playback adds `SamplesBuffer::new(channels, rate, slice.to_vec()).amplify(volume)`
+  to `stream.mixer()`, matching the existing `audio.rs` API. The mixer mixes
+  concurrent keypresses and resamples each clip to the output device, so
+  overlapping keys never queue and custom packs may keep their own rate.
+- Pause is handled by ignoring `Sound` commands while paused, as today.
+  `Preview` still plays so the user can audition a pack while paused.
+- If decoding the newly selected pack fails, the audio thread emits a warning
+  and keeps the previous pack active rather than going silent.
 - `Preview` plays `next_default()` once.
 - The audio stream itself is still created once; stream errors keep the
   current "audio unavailable" behavior.
@@ -246,13 +269,14 @@ pub struct LoadedPack {
 - A `key_to_scan_code(rdev::Key) -> Option<u16>` table covers every key that
   MechVibes defines: letters, digits, punctuation, Space/Enter/Backspace/Tab,
   Escape, arrows, modifiers, function keys, navigation keys, and keypad.
-  `Unknown`/`Function` return `None`.
+  `Unknown(_)`/`Function` return `None`.
 - Representative mappings (full table follows MechVibes `keycodes.js`):
   `KeyA`→30, `KeyZ`→44, `Num1`→2, `Num0`→11, `Minus`→12, `Equal`→13,
   `LeftBracket`→26, `SemiColon`→39, `Quote`→40, `BackQuote`→41,
-  `BackSlash`→43, `Comma`→51, `Dot`→52, `Slash`→53, `Space`→57,
-  `Return`→28, `Backspace`→14, `Tab`→15, `Escape`→1, `UpArrow`→57416,
-  `LeftArrow`→57419, `RightArrow`→57421, `DownArrow`→57424.
+  `BackSlash`→43, `IntlBackslash`→43, `Comma`→51, `Dot`→52, `Slash`→53,
+  `Space`→57, `Return`→28, `Backspace`→14, `Tab`→15, `Escape`→1,
+  `UpArrow`→57416, `LeftArrow`→57419, `RightArrow`→57421,
+  `DownArrow`→57424.
 
 ### UI and config
 
@@ -265,10 +289,12 @@ pub struct LoadedPack {
 
 ## Error handling
 
-- Missing/corrupt built-in asset: warn to stderr, skip that profile, keep the
-  rest usable. Built-ins are compile-time embedded, so this indicates a build
-  defect.
-- Invalid manifest or FLAC decode error: warn, skip the profile.
+- Missing or invalid built-in manifest: warn (stderr and a UI notice) and omit
+  that profile from the list at startup, keeping the rest usable. Manifests are
+  parsed eagerly (cheap) even though audio is decoded lazily. Built-ins are
+  compile-time embedded, so this indicates a build defect.
+- FLAC decode error when selecting a built-in: warn, keep the previous pack
+  active, and leave the UI usable.
 - Custom pack failure: unchanged behavior (warn and skip).
 - Audio output unavailable: unchanged; UI remains usable.
 - No network at generation time: script fails with the failing URL and leaves
@@ -311,6 +337,8 @@ Unit/integration tests (`cargo test`):
    57 to space, and falls back to press for letters.
 7. UI smoke test with `TestBackend` renders all 11 names including
    "Cherry MX Black (ABS)".
+8. Built-in profile list contains the expected 11 ids in order with
+   `mx-black-abs` last, and every manifest parses.
 
 Verification commands:
 
@@ -324,8 +352,9 @@ Verification commands:
 
 - 11 built-in profiles are listed; `mx-black-abs` plays the requested Cherry
   MX Black ABS recording.
-- Typing different letters in any built-in profile produces different samples;
-  Space uses the space slice when the pack has one.
+- Typing letters in packs that provide per-key data produces key-specific
+  samples; packs without it rotate through fallback takes. Space uses the space
+  slice when the pack has one.
 - Keys without a specific slice still produce a click via defaults.
 - Total committed audio is under 4 MB.
 - Existing custom packs load and play unchanged.
@@ -334,9 +363,9 @@ Verification commands:
 
 ## Risks
 
-- **rodio API drift**: `Decoder` item type and `play_raw`/`amplify` signatures
-  differ across 0.21 patch releases. The implementation plan verifies the
-  exact signatures before coding.
+- **rodio API drift**: `Decoder` item type, `SamplesBuffer::new`, and
+  `mixer().add` signatures can differ across 0.21 patch releases. The
+  implementation plan verifies against the pinned 0.21.1 source before coding.
 - **Licensing**: recordings originate from MechVibes/MechSim. Both are MIT;
   CREDITS must name both projects and the source directories.
 - **Generator reproducibility**: upstream MechSim files can change. Committed
