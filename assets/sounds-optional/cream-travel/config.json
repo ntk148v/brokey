@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "profile": "cream-travel",
+  "source": {
+    "repo": "https://github.com/cjlangan/MechSim",
+    "dir": "audio/cream-travel",
+    "license": "MIT"
+  },
+  "sample_rate": 44100,
+  "channels": 1,
+  "total_samples": 26672,
+  "audio": "sound.flac",
+  "keys": {
+    "14": [
+      0,
+      4485
+    ],
+    "28": [
+      4485,
+      3393
+    ],
+    "57": [
+      7878,
+      3029
+    ]
+  },
+  "defaults": [
+    [
+      10907,
+      3153
+    ],
+    [
+      14060,
+      3153
+    ],
+    [
+      17213,
+      3153
+    ],
+    [
+      20366,
+      3153
+    ],
+    [
+      23519,
+      3153
+    ]
+  ]
+}

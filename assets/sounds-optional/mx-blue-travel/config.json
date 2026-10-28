@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "profile": "mx-blue-travel",
+  "source": {
+    "repo": "https://github.com/cjlangan/MechSim",
+    "dir": "audio/mxblue-travel",
+    "license": "MIT"
+  },
+  "sample_rate": 44100,
+  "channels": 1,
+  "total_samples": 16010,
+  "audio": "sound.flac",
+  "keys": {},
+  "defaults": [
+    [
+      0,
+      3202
+    ],
+    [
+      3202,
+      3202
+    ],
+    [
+      6404,
+      3202
+    ],
+    [
+      9606,
+      3202
+    ],
+    [
+      12808,
+      3202
+    ]
+  ]
+}

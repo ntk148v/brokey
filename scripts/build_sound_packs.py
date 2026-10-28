@@ -6,7 +6,7 @@ files are committed, so normal builds and runtime need neither network access
 nor ffmpeg.
 
 Usage:
-    python3 scripts/build_sound_packs.py [--only ID]
+    python3 scripts/build_sound_packs.py [--set {default,optional}] [--only ID ...]
 """
 
 from __future__ import annotations
@@ -24,21 +24,34 @@ from pathlib import Path
 
 RAW = "https://raw.githubusercontent.com/cjlangan/MechSim/main/audio"
 ROOT = Path(__file__).resolve().parent.parent
-OUT_ROOT = ROOT / "assets" / "sounds"
+OUT_DEFAULT = ROOT / "assets" / "sounds"
+OUT_OPTIONAL = ROOT / "assets" / "sounds-optional"
 
-PACKS = {
+DEFAULT_PACKS = {
     "mx-blue": "cherrymx-blue-abs",
     "mx-red": "cherrymx-red-abs",
     "mx-brown": "cherrymx-brown-abs",
     "topre": "topre-purple-hybrid-pbt",
+}
+
+OPTIONAL_PACKS = {
     "mx-black": "cherrymx-black-pbt",
     "mx-black-abs": "cherrymx-black-abs",
+    "mx-blue-pbt": "cherrymx-blue-pbt",
+    "mx-red-pbt": "cherrymx-red-pbt",
+    "mx-brown-pbt": "cherrymx-brown-pbt",
     "holy-panda": "holy-pandas",
     "nk-cream": "nk-cream",
     "eg-oreo": "eg-oreo",
     "eg-crystal-purple": "eg-crystal-purple",
     "turquoise": "turquoise",
+    "cream-travel": "cream-travel",
+    "mx-black-travel": "mxblack-travel",
+    "mx-blue-travel": "mxblue-travel",
+    "mx-brown-travel": "mxbrown-travel",
 }
+
+PACKS = {**DEFAULT_PACKS, **OPTIONAL_PACKS}
 
 # MechVibes scan codes for the keys people actually type on.
 KEYS = sorted(
@@ -162,7 +175,7 @@ def url_for(source_dir: str, rel: str) -> str:
     return f"{RAW}/{source_dir}/{urllib.parse.quote(rel, safe='/')}"
 
 
-def build(profile: str, source_dir: str) -> tuple[int, int]:
+def build(profile: str, source_dir: str, out_root: Path) -> tuple[int, int]:
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         cfg = json.loads(fetch(f"{RAW}/{source_dir}/config.json"))
@@ -188,16 +201,20 @@ def build(profile: str, source_dir: str) -> tuple[int, int]:
             else:
                 rel = entry
                 path = tmp / f"{code}-{Path(rel).name}"
-                download(url_for(source_dir, rel), path)
+                try:
+                    download(url_for(source_dir, rel), path)
+                except RuntimeError as exc:
+                    print(
+                        f"warning: {profile}: skipping key {code}: {exc}",
+                        file=sys.stderr,
+                    )
+                    continue
                 clip = ffmpeg_pcm(path)
             clip = apply_fades(clip)
             if not clip:
                 continue
             keys[code] = (len(buf), len(clip))
             buf.extend(clip)
-
-        if not buf:
-            raise RuntimeError(f"{profile}: no key clips found")
 
         defaults: list[tuple[int, int]] = []
         if kind == "multi":
@@ -219,13 +236,15 @@ def build(profile: str, source_dir: str) -> tuple[int, int]:
                     defaults.append(keys[code])
         if not defaults:
             defaults = [range_ for _, range_ in sorted(keys.items())[:5]]
+        if not buf:
+            raise RuntimeError(f"{profile}: no clips found")
 
         peak = max((abs(sample) for sample in buf), default=0.0)
         if peak > 0.0:
             gain = PEAK / peak
             buf = [sample * gain for sample in buf]
 
-        dest_dir = OUT_ROOT / profile
+        dest_dir = out_root / profile
         encode_flac(buf, dest_dir / "sound.flac")
         manifest = {
             "version": 1,
@@ -254,13 +273,37 @@ def build(profile: str, source_dir: str) -> tuple[int, int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--only", choices=sorted(PACKS), help="build one profile")
+    parser.add_argument(
+        "--only",
+        action="append",
+        choices=sorted(PACKS),
+        help="build one profile (repeatable)",
+    )
+    parser.add_argument(
+        "--set",
+        choices=["default", "optional"],
+        help="limit a bulk build to one set",
+    )
     args = parser.parse_args()
-    profiles = [args.only] if args.only else list(PACKS)
+
+    if args.set == "default":
+        selected = dict(DEFAULT_PACKS)
+    elif args.set == "optional":
+        selected = dict(OPTIONAL_PACKS)
+    else:
+        selected = dict(PACKS)
+
+    if args.only:
+        for profile in args.only:
+            if profile not in selected:
+                parser.error(f"{profile} is not in the selected set")
+        selected = {profile: PACKS[profile] for profile in args.only}
+
     total_audio = 0
     total_manifest = 0
-    for profile in profiles:
-        audio, manifest = build(profile, PACKS[profile])
+    for profile, source_dir in selected.items():
+        out_root = OUT_OPTIONAL if profile in OPTIONAL_PACKS else OUT_DEFAULT
+        audio, manifest = build(profile, source_dir, out_root)
         total_audio += audio
         total_manifest += manifest
         print(

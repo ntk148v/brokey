@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "profile": "mx-brown-travel",
+  "source": {
+    "repo": "https://github.com/cjlangan/MechSim",
+    "dir": "audio/mxbrown-travel",
+    "license": "MIT"
+  },
+  "sample_rate": 44100,
+  "channels": 1,
+  "total_samples": 30690,
+  "audio": "sound.flac",
+  "keys": {
+    "14": [
+      0,
+      4323
+    ],
+    "28": [
+      4323,
+      3940
+    ],
+    "57": [
+      8263,
+      1582
+    ]
+  },
+  "defaults": [
+    [
+      9845,
+      4169
+    ],
+    [
+      14014,
+      4169
+    ],
+    [
+      18183,
+      4169
+    ],
+    [
+      22352,
+      4169
+    ],
+    [
+      26521,
+      4169
+    ]
+  ]
+}

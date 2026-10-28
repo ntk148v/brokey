@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "profile": "mx-black-travel",
+  "source": {
+    "repo": "https://github.com/cjlangan/MechSim",
+    "dir": "audio/mxblack-travel",
+    "license": "MIT"
+  },
+  "sample_rate": 44100,
+  "channels": 1,
+  "total_samples": 25367,
+  "audio": "sound.flac",
+  "keys": {
+    "14": [
+      0,
+      2950
+    ],
+    "28": [
+      2950,
+      3970
+    ],
+    "57": [
+      6920,
+      3877
+    ]
+  },
+  "defaults": [
+    [
+      10797,
+      2914
+    ],
+    [
+      13711,
+      2914
+    ],
+    [
+      16625,
+      2914
+    ],
+    [
+      19539,
+      2914
+    ],
+    [
+      22453,
+      2914
+    ]
+  ]
+}

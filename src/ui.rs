@@ -10,9 +10,18 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProfileEntry {
+    pub id: String,
+    pub name: String,
+    pub optional: bool,
+    pub available: bool,
+    pub downloading: bool,
+}
+
 #[derive(Clone)]
 pub struct App {
-    pub profiles: Vec<(String, String)>, // (id, name)
+    pub profiles: Vec<ProfileEntry>,
     pub selected: usize,
     pub volume: u8,
     pub paused: bool,
@@ -21,16 +30,16 @@ pub struct App {
     pub quit: bool,
 }
 
-pub fn new(profiles: Vec<(String, String)>, cfg: &Config) -> App {
+pub fn new(profiles: Vec<ProfileEntry>, cfg: &Config) -> App {
     let mut notice: Option<String> = None;
     let selected_idx_res = if !profiles.is_empty() {
-        if let Some(idx) = profiles.iter().position(|(id, _)| id == &cfg.profile) {
+        if let Some(idx) = profiles.iter().position(|p| p.id == cfg.profile) {
             idx
         } else {
-            if let Some((_, name)) = profiles.first() {
+            if let Some(first) = profiles.first() {
                 notice = Some(format!(
                     "Saved profile '{}' not found; using {}",
-                    cfg.profile, name
+                    cfg.profile, first.name
                 ));
             } else {
                 notice = Some(format!("Saved profile '{}' not found", cfg.profile));
@@ -130,7 +139,7 @@ impl App {
             return Config::default();
         }
         Config {
-            profile: self.profiles[self.selected].0.clone(),
+            profile: self.profiles[self.selected].id.clone(),
             volume: self.volume,
         }
     }
@@ -142,6 +151,43 @@ impl App {
             }
             Notice::Warn(e) => {
                 self.notice = Some(e);
+            }
+            Notice::Downloading(id) => {
+                let name = self
+                    .profiles
+                    .iter()
+                    .find(|p| p.id == id)
+                    .map(|p| p.name.clone())
+                    .unwrap_or_else(|| id.clone());
+                if let Some(entry) = self.profiles.iter_mut().find(|p| p.id == id) {
+                    entry.downloading = true;
+                }
+                self.notice = Some(format!("Downloading {name}…"));
+            }
+            Notice::Downloaded(id) => {
+                let name = self
+                    .profiles
+                    .iter()
+                    .find(|p| p.id == id)
+                    .map(|p| p.name.clone())
+                    .unwrap_or_else(|| id.clone());
+                if let Some(entry) = self.profiles.iter_mut().find(|p| p.id == id) {
+                    entry.available = true;
+                    entry.downloading = false;
+                }
+                self.notice = Some(format!("Downloaded {name}"));
+            }
+            Notice::DownloadFailed { id, error } => {
+                let name = self
+                    .profiles
+                    .iter()
+                    .find(|p| p.id == id)
+                    .map(|p| p.name.clone())
+                    .unwrap_or_else(|| id.clone());
+                if let Some(entry) = self.profiles.iter_mut().find(|p| p.id == id) {
+                    entry.downloading = false;
+                }
+                self.notice = Some(format!("Could not download {name}: {error}"));
             }
         }
     }
@@ -232,16 +278,28 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App) {
         .profiles
         .iter()
         .enumerate()
-        .map(|(idx, (_id, name))| {
-            if idx == app.selected {
-                ListItem::new(format!("▸ {}", name.as_str())).style(
-                    Style::default()
-                        .fg(Color::Cyan)
-                        .add_modifier(Modifier::BOLD),
-                )
+        .map(|(idx, entry)| {
+            let suffix = if entry.downloading {
+                "  …"
+            } else if entry.optional && !entry.available {
+                "  ↓"
             } else {
-                ListItem::new(format!("  {}", name.as_str()))
-            }
+                ""
+            };
+            let marker = if idx == app.selected { "▸ " } else { "  " };
+            let text = format!("{marker}{}{suffix}", entry.name);
+            let style = if idx == app.selected {
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD)
+            } else if entry.downloading {
+                Style::default().fg(Color::Yellow)
+            } else if entry.optional && !entry.available {
+                Style::default().fg(Color::DarkGray)
+            } else {
+                Style::default()
+            };
+            ListItem::new(text).style(style)
         })
         .collect();
     let list = List::new(items)
@@ -295,11 +353,7 @@ pub fn run(
                 if key.kind == KeyEventKind::Press {
                     let cmd = on_key(&mut app, key.code, key.modifiers);
                     if let Some(c) = cmd {
-                        let is_set_profile = matches!(c, AudioCmd::SetProfile(_));
                         let _ = audio.send(c);
-                        if is_set_profile {
-                            let _ = audio.send(AudioCmd::Preview);
-                        }
                         if matches!(c, AudioCmd::SetProfile(_) | AudioCmd::SetVolume(_)) {
                             if let Some(ref p) = cfg_path {
                                 if let Err(e) = crate::config::save(p, &App::config(&app)) {
@@ -329,12 +383,22 @@ mod tests {
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
+    fn entry(id: &str, name: &str, optional: bool, available: bool) -> ProfileEntry {
+        ProfileEntry {
+            id: id.to_string(),
+            name: name.to_string(),
+            optional,
+            available,
+            downloading: false,
+        }
+    }
+
     fn app() -> App {
         let profiles = vec![
-            ("mx-blue".to_string(), "Cherry MX Blue".to_string()),
-            ("mx-red".to_string(), "Cherry MX Red".to_string()),
-            ("mx-brown".to_string(), "Cherry MX Brown".to_string()),
-            ("topre".to_string(), "Topre".to_string()),
+            entry("mx-blue", "Cherry MX Blue (ABS)", false, true),
+            entry("mx-red", "Cherry MX Red (ABS)", false, true),
+            entry("mx-brown", "Cherry MX Brown (ABS)", false, true),
+            entry("topre", "Topre", false, true),
         ];
         new(profiles, &Config::default())
     }
@@ -485,19 +549,85 @@ mod tests {
     }
 
     #[test]
-    fn renders_all_builtin_profiles() {
-        let (builtins, warnings) = crate::profiles::builtins();
-        assert!(warnings.is_empty(), "{warnings:?}");
-        let pairs: Vec<(String, String)> = builtins
-            .iter()
-            .map(|p| (p.id.clone(), p.name.clone()))
-            .collect();
-        let a = new(pairs, &Config::default());
+    fn renders_optional_download_marker() {
+        let mut a = app();
+        a.profiles
+            .push(entry("mx-black", "Cherry MX Black (PBT)", true, false));
         let backend = TestBackend::new(60, 24);
         let mut terminal = Terminal::new(backend).unwrap();
         terminal.draw(|f| draw(f, &a)).unwrap();
         let text = buffer_text(terminal.backend().buffer());
-        assert!(text.contains("Cherry MX Black (ABS)"));
-        assert!(text.contains("Turquoise Tealios"));
+        assert!(text.contains("Cherry MX Black (PBT)  ↓"), "{text}");
+    }
+
+    #[test]
+    fn download_notices_update_entry() {
+        let mut a = app();
+        a.profiles
+            .push(entry("mx-black", "Cherry MX Black (PBT)", true, false));
+
+        on_notice(&mut a, Notice::Downloading("mx-black".into()));
+        assert!(a.profiles.last().unwrap().downloading);
+        assert!(a.notice.as_ref().unwrap().contains("Downloading"));
+
+        on_notice(&mut a, Notice::Downloaded("mx-black".into()));
+        let entry = a.profiles.last().unwrap();
+        assert!(entry.available);
+        assert!(!entry.downloading);
+        assert!(a.notice.as_ref().unwrap().contains("Downloaded"));
+    }
+
+    #[test]
+    fn download_failure_clears_busy_state() {
+        let mut a = app();
+        a.profiles.push(ProfileEntry {
+            id: "mx-black".into(),
+            name: "Cherry MX Black (PBT)".into(),
+            optional: true,
+            available: false,
+            downloading: true,
+        });
+        on_notice(
+            &mut a,
+            Notice::DownloadFailed {
+                id: "mx-black".into(),
+                error: "offline".into(),
+            },
+        );
+        assert!(!a.profiles.last().unwrap().downloading);
+        assert!(a.notice.as_ref().unwrap().contains("offline"));
+    }
+
+    #[test]
+    fn scrolls_to_selected_optional() {
+        let entries: Vec<ProfileEntry> = (0..18)
+            .map(|i| entry(&format!("p{i}"), &format!("Pack {i}"), i >= 4, i < 4))
+            .collect();
+        let mut a = new(entries, &Config::default());
+        a.selected = 17;
+        let backend = TestBackend::new(60, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal.draw(|f| draw(f, &a)).unwrap();
+        let text = buffer_text(terminal.backend().buffer());
+        assert!(text.contains("Pack 17"), "{text}");
+    }
+
+    #[test]
+    fn renders_all_default_profiles() {
+        let (builtins, warnings) = crate::profiles::builtins();
+        assert!(warnings.is_empty(), "{warnings:?}");
+        let entries: Vec<ProfileEntry> = builtins
+            .iter()
+            .map(|p| entry(&p.id, &p.name, p.is_optional(), p.is_available(None)))
+            .collect();
+        let a = new(entries, &Config::default());
+        let backend = TestBackend::new(60, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        terminal.draw(|f| draw(f, &a)).unwrap();
+        let text = buffer_text(terminal.backend().buffer());
+        assert!(text.contains("Cherry MX Blue (ABS)"));
+        assert!(text.contains("Cherry MX Red (ABS)"));
+        assert!(text.contains("Cherry MX Brown (ABS)"));
+        assert!(text.contains("Topre"));
     }
 }

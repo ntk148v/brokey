@@ -105,10 +105,10 @@ pub struct LoadedPack {
 }
 
 impl LoadedPack {
-    pub fn from_builtin(sprite: &'static [u8], manifest: &[u8]) -> Result<LoadedPack, String> {
+    pub fn from_builtin(sprite: &[u8], manifest: &[u8]) -> Result<LoadedPack, String> {
         let manifest = Manifest::parse(manifest)?;
-        let decoder =
-            Decoder::new(Cursor::new(sprite)).map_err(|e| format!("could not decode FLAC: {e}"))?;
+        let decoder = Decoder::new(Cursor::new(sprite.to_vec()))
+            .map_err(|e| format!("could not decode FLAC: {e}"))?;
         let rate = decoder.sample_rate();
         let channels = decoder.channels();
         if rate != manifest.sample_rate {

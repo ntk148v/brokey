@@ -3,6 +3,7 @@ use std::thread;
 
 pub mod audio;
 pub mod config;
+pub mod download;
 pub mod listener;
 pub mod pack;
 pub mod profiles;
@@ -12,6 +13,9 @@ pub mod ui;
 pub enum Notice {
     ListenerFailed(String),
     Warn(String),
+    Downloading(String),
+    Downloaded(String),
+    DownloadFailed { id: String, error: String },
 }
 
 fn main() {
@@ -24,13 +28,20 @@ fn main() {
     };
 
     let user_dir = config::dir().map(|d| d.join("sounds"));
+    let packs_dir = config::dir().map(|d| d.join("packs"));
     let (profiles_vec, warnings) = profiles::all(user_dir.as_deref());
-    let profile_pairs: Vec<(String, String)> = profiles_vec
+    let entries: Vec<ui::ProfileEntry> = profiles_vec
         .iter()
-        .map(|p| (p.id.clone(), p.name.clone()))
+        .map(|p| ui::ProfileEntry {
+            id: p.id.clone(),
+            name: p.name.clone(),
+            optional: p.is_optional(),
+            available: p.is_available(packs_dir.as_deref()),
+            downloading: false,
+        })
         .collect();
 
-    let mut app = ui::new(profile_pairs.clone(), &cfg);
+    let mut app = ui::new(entries, &cfg);
     if let Some(w) = cfg_warn {
         crate::ui::on_notice(&mut app, Notice::Warn(w));
     }
@@ -39,7 +50,13 @@ fn main() {
     }
 
     let (notice_tx, notice_rx) = mpsc::channel::<Notice>();
-    let audio_tx = audio::spawn(profiles_vec, app.selected, app.volume, notice_tx.clone());
+    let audio_tx = audio::spawn(
+        profiles_vec,
+        packs_dir,
+        app.selected,
+        app.volume,
+        notice_tx.clone(),
+    );
 
     let app_for_ui = app;
     let audio_tx_clone = audio_tx.clone();

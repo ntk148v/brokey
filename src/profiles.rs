@@ -8,6 +8,7 @@ pub enum ProfileSource {
         sprite: &'static [u8],
         manifest: &'static [u8],
     },
+    Optional,
     Custom {
         press: Vec<u8>,
         space: Option<Vec<u8>>,
@@ -19,6 +20,21 @@ pub struct Profile {
     pub id: String,
     pub name: String,
     pub source: ProfileSource,
+}
+
+impl Profile {
+    pub fn is_optional(&self) -> bool {
+        matches!(&self.source, ProfileSource::Optional)
+    }
+
+    pub fn is_available(&self, packs: Option<&Path>) -> bool {
+        match &self.source {
+            ProfileSource::Optional => packs
+                .map(|dir| crate::download::is_installed(dir, &self.id))
+                .unwrap_or(false),
+            ProfileSource::Builtin { .. } | ProfileSource::Custom { .. } => true,
+        }
+    }
 }
 
 fn builtin(
@@ -37,22 +53,22 @@ fn builtin(
 }
 
 pub fn builtins() -> (Vec<Profile>, Vec<String>) {
-    let specs: [(&str, &str, &'static [u8], &'static [u8]); 11] = [
+    let specs: [(&str, &str, &'static [u8], &'static [u8]); 4] = [
         (
             "mx-blue",
-            "Cherry MX Blue",
+            "Cherry MX Blue (ABS)",
             include_bytes!("../assets/sounds/mx-blue/sound.flac"),
             include_bytes!("../assets/sounds/mx-blue/config.json"),
         ),
         (
             "mx-red",
-            "Cherry MX Red",
+            "Cherry MX Red (ABS)",
             include_bytes!("../assets/sounds/mx-red/sound.flac"),
             include_bytes!("../assets/sounds/mx-red/config.json"),
         ),
         (
             "mx-brown",
-            "Cherry MX Brown",
+            "Cherry MX Brown (ABS)",
             include_bytes!("../assets/sounds/mx-brown/sound.flac"),
             include_bytes!("../assets/sounds/mx-brown/config.json"),
         ),
@@ -61,48 +77,6 @@ pub fn builtins() -> (Vec<Profile>, Vec<String>) {
             "Topre",
             include_bytes!("../assets/sounds/topre/sound.flac"),
             include_bytes!("../assets/sounds/topre/config.json"),
-        ),
-        (
-            "mx-black",
-            "Cherry MX Black",
-            include_bytes!("../assets/sounds/mx-black/sound.flac"),
-            include_bytes!("../assets/sounds/mx-black/config.json"),
-        ),
-        (
-            "holy-panda",
-            "Holy Panda",
-            include_bytes!("../assets/sounds/holy-panda/sound.flac"),
-            include_bytes!("../assets/sounds/holy-panda/config.json"),
-        ),
-        (
-            "nk-cream",
-            "NK Cream",
-            include_bytes!("../assets/sounds/nk-cream/sound.flac"),
-            include_bytes!("../assets/sounds/nk-cream/config.json"),
-        ),
-        (
-            "eg-oreo",
-            "Everglide Oreo",
-            include_bytes!("../assets/sounds/eg-oreo/sound.flac"),
-            include_bytes!("../assets/sounds/eg-oreo/config.json"),
-        ),
-        (
-            "eg-crystal-purple",
-            "Everglide Crystal Purple",
-            include_bytes!("../assets/sounds/eg-crystal-purple/sound.flac"),
-            include_bytes!("../assets/sounds/eg-crystal-purple/config.json"),
-        ),
-        (
-            "turquoise",
-            "Turquoise Tealios",
-            include_bytes!("../assets/sounds/turquoise/sound.flac"),
-            include_bytes!("../assets/sounds/turquoise/config.json"),
-        ),
-        (
-            "mx-black-abs",
-            "Cherry MX Black (ABS)",
-            include_bytes!("../assets/sounds/mx-black-abs/sound.flac"),
-            include_bytes!("../assets/sounds/mx-black-abs/config.json"),
         ),
     ];
 
@@ -115,6 +89,33 @@ pub fn builtins() -> (Vec<Profile>, Vec<String>) {
         }
     }
     (profiles, warnings)
+}
+
+pub fn optional() -> Vec<Profile> {
+    const SPECS: [(&str, &str); 14] = [
+        ("mx-black", "Cherry MX Black (PBT)"),
+        ("mx-black-abs", "Cherry MX Black (ABS)"),
+        ("mx-blue-pbt", "Cherry MX Blue (PBT)"),
+        ("mx-red-pbt", "Cherry MX Red (PBT)"),
+        ("mx-brown-pbt", "Cherry MX Brown (PBT)"),
+        ("holy-panda", "Holy Panda"),
+        ("nk-cream", "NK Cream"),
+        ("eg-oreo", "Everglide Oreo"),
+        ("eg-crystal-purple", "Everglide Crystal Purple"),
+        ("turquoise", "Turquoise Tealios"),
+        ("cream-travel", "Cream (Full Travel)"),
+        ("mx-black-travel", "Cherry MX Black (Full Travel)"),
+        ("mx-blue-travel", "Cherry MX Blue (Full Travel)"),
+        ("mx-brown-travel", "Cherry MX Brown (Full Travel)"),
+    ];
+    SPECS
+        .into_iter()
+        .map(|(id, name)| Profile {
+            id: id.to_string(),
+            name: name.to_string(),
+            source: ProfileSource::Optional,
+        })
+        .collect()
 }
 
 pub fn load_user(dir: &Path) -> (Vec<Profile>, Vec<String>) {
@@ -208,12 +209,13 @@ pub fn load_user(dir: &Path) -> (Vec<Profile>, Vec<String>) {
 
 pub fn all(user_dir: Option<&Path>) -> (Vec<Profile>, Vec<String>) {
     let (mut result, mut warnings) = builtins();
+    result.extend(optional());
     if let Some(dir) = user_dir {
         let (users, mut uw) = load_user(dir);
         for u in users {
-            if result.iter().any(|b| b.id == u.id) {
+            if result.iter().any(|p| p.id == u.id) {
                 warnings.push(format!(
-                    "Skipped sound pack '{}': conflicts with a built-in profile",
+                    "Skipped sound pack '{}': conflicts with a profile",
                     u.id
                 ));
                 continue;
@@ -226,55 +228,87 @@ pub fn all(user_dir: Option<&Path>) -> (Vec<Profile>, Vec<String>) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::testutil::wav_bytes;
     use std::fs::{self, File};
     use std::io::Write;
     use tempfile::tempdir;
 
+    pub(crate) fn embedded_bytes() -> (&'static [u8], &'static [u8]) {
+        let (profiles, _) = builtins();
+        match &profiles[0].source {
+            ProfileSource::Builtin { sprite, manifest } => (*sprite, *manifest),
+            _ => panic!("first builtin is not embedded"),
+        }
+    }
+
     #[test]
-    fn builtins_are_the_expected_switches() {
+    fn builtins_are_the_expected_defaults() {
         let (b, warnings) = builtins();
         assert!(warnings.is_empty(), "{warnings:?}");
         let ids: Vec<&str> = b.iter().map(|p| p.id.as_str()).collect();
-        assert_eq!(
-            ids,
-            vec![
-                "mx-blue",
-                "mx-red",
-                "mx-brown",
-                "topre",
-                "mx-black",
-                "holy-panda",
-                "nk-cream",
-                "eg-oreo",
-                "eg-crystal-purple",
-                "turquoise",
-                "mx-black-abs",
-            ]
-        );
+        assert_eq!(ids, vec!["mx-blue", "mx-red", "mx-brown", "topre"]);
         let names: Vec<&str> = b.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(
             names,
             vec![
-                "Cherry MX Blue",
-                "Cherry MX Red",
-                "Cherry MX Brown",
+                "Cherry MX Blue (ABS)",
+                "Cherry MX Red (ABS)",
+                "Cherry MX Brown (ABS)",
                 "Topre",
-                "Cherry MX Black",
-                "Holy Panda",
-                "NK Cream",
-                "Everglide Oreo",
-                "Everglide Crystal Purple",
-                "Turquoise Tealios",
-                "Cherry MX Black (ABS)",
             ]
         );
     }
 
     #[test]
-    fn all_builtins_decode() {
+    fn optional_catalog_is_the_expected_order() {
+        let o = optional();
+        let ids: Vec<&str> = o.iter().map(|p| p.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            vec![
+                "mx-black",
+                "mx-black-abs",
+                "mx-blue-pbt",
+                "mx-red-pbt",
+                "mx-brown-pbt",
+                "holy-panda",
+                "nk-cream",
+                "eg-oreo",
+                "eg-crystal-purple",
+                "turquoise",
+                "cream-travel",
+                "mx-black-travel",
+                "mx-blue-travel",
+                "mx-brown-travel",
+            ]
+        );
+        let names: Vec<&str> = o.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec![
+                "Cherry MX Black (PBT)",
+                "Cherry MX Black (ABS)",
+                "Cherry MX Blue (PBT)",
+                "Cherry MX Red (PBT)",
+                "Cherry MX Brown (PBT)",
+                "Holy Panda",
+                "NK Cream",
+                "Everglide Oreo",
+                "Everglide Crystal Purple",
+                "Turquoise Tealios",
+                "Cream (Full Travel)",
+                "Cherry MX Black (Full Travel)",
+                "Cherry MX Blue (Full Travel)",
+                "Cherry MX Brown (Full Travel)",
+            ]
+        );
+        assert!(o.iter().all(|p| p.is_optional()));
+    }
+
+    #[test]
+    fn all_default_builtins_decode() {
         let (b, warnings) = builtins();
         assert!(warnings.is_empty(), "{warnings:?}");
         for profile in &b {
@@ -285,7 +319,9 @@ mod tests {
                     assert!(!pack.keys.is_empty(), "{} has no keys", profile.id);
                     assert!(!pack.defaults.is_empty(), "{} has no defaults", profile.id);
                 }
-                ProfileSource::Custom { .. } => panic!("{} is not built-in", profile.id),
+                ProfileSource::Optional | ProfileSource::Custom { .. } => {
+                    panic!("{} is not embedded", profile.id)
+                }
             }
         }
     }
@@ -300,8 +336,37 @@ mod tests {
                 assert!(m.keys.contains_key(&30)); // A
                 assert!(m.keys.contains_key(&57)); // Space
             }
-            ProfileSource::Custom { .. } => panic!("mx-blue is not built-in"),
+            _ => panic!("mx-blue is not built-in"),
         }
+    }
+
+    #[test]
+    fn availability_tracks_the_cache() {
+        let td = tempdir().unwrap();
+        let (sprite, manifest) = embedded_bytes();
+        crate::download::install_from_bytes(td.path(), "mx-blue-pbt", manifest, sprite).unwrap();
+        let b = builtins().0;
+        assert!(b[0].is_available(None));
+        let o = optional();
+        let p = o.iter().find(|p| p.id == "mx-blue-pbt").unwrap();
+        assert!(p.is_available(Some(td.path())));
+        assert!(!p.is_available(None));
+        assert!(!o
+            .iter()
+            .find(|p| p.id == "holy-panda")
+            .unwrap()
+            .is_available(Some(td.path())));
+    }
+
+    #[test]
+    fn all_lists_defaults_then_optional_then_users() {
+        let td = tempdir().unwrap();
+        let pack = td.path().join("zzz-mine");
+        fs::create_dir_all(&pack).unwrap();
+        fs::write(pack.join("press.wav"), wav_bytes(&[0, 1000, -1000, 0])).unwrap();
+        let (allp, warns) = all(Some(td.path()));
+        assert_eq!(allp.len(), 19, "{warns:?}");
+        assert_eq!(allp[18].id, "zzz-mine");
     }
 
     #[test]
@@ -367,7 +432,18 @@ mod tests {
         fs::create_dir_all(&pack).unwrap();
         fs::write(pack.join("press.wav"), wav_bytes(&[0, 1000, -1000, 0])).unwrap();
         let (allp, warns) = all(Some(td.path()));
-        assert_eq!(allp.len(), builtins().0.len());
+        assert_eq!(allp.len(), 18);
+        assert!(warns.iter().any(|w| w.contains("conflicts")));
+    }
+
+    #[test]
+    fn user_pack_cannot_shadow_optional() {
+        let td = tempdir().unwrap();
+        let pack = td.path().join("holy-panda");
+        fs::create_dir_all(&pack).unwrap();
+        fs::write(pack.join("press.wav"), wav_bytes(&[0, 1000, -1000, 0])).unwrap();
+        let (allp, warns) = all(Some(td.path()));
+        assert_eq!(allp.len(), 18);
         assert!(warns.iter().any(|w| w.contains("conflicts")));
     }
 
@@ -376,5 +452,30 @@ mod tests {
         let (ps, warns) = load_user(Path::new("/nonexistent/brokey"));
         assert_eq!(ps.len(), 0);
         assert_eq!(warns.len(), 0);
+    }
+
+    #[test]
+    fn optional_assets_decode_from_disk() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/sounds-optional");
+        let mut ids: Vec<String> = fs::read_dir(&root)
+            .unwrap()
+            .flatten()
+            .filter(|e| e.path().is_dir())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        ids.sort();
+        assert_eq!(ids.len(), 14, "{ids:?}");
+        for id in ids {
+            let dir = root.join(&id);
+            let manifest = fs::read(dir.join("config.json")).unwrap();
+            let sprite = fs::read(dir.join("sound.flac")).unwrap();
+            let pack = LoadedPack::from_builtin(&sprite, &manifest)
+                .unwrap_or_else(|e| panic!("{id}: {e}"));
+            assert!(!pack.defaults.is_empty(), "{id} has no defaults");
+            // Upstream mxblue-travel currently ships only generic takes.
+            if id != "mx-blue-travel" {
+                assert!(!pack.keys.is_empty(), "{id} has no keys");
+            }
+        }
     }
 }

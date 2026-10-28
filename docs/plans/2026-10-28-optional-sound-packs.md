@@ -12,6 +12,8 @@
 
 **Repo:** `/Users/kiennt/Workspace/github.com/ntk148v/brokey`, branch `master`. Baseline: `cargo test` = 40 passed.
 
+**Status (2026-10-28):** Implemented in `f10a8d4`. `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (60 passed), and `cargo build --release` pass. Raw download URLs still return 404 until `assets/sounds-optional/` is pushed to `origin/master`; manual smoke test remains.
+
 ---
 
 ## File map
