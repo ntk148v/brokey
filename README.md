@@ -105,7 +105,7 @@ takes, so that pack uses its defaults for every key.
 ## Custom sound packs
 
 Put custom packs in `<config dir>/brokey/sounds/<name>/`.
-`<name>/press.wav` is required; optional `space.wav`. The directory name becomes the profile id and name. A pack needs a file with stem `press` (any extension). Packs that collide with any catalog id or fail to decode are skipped with a warning shown in the UI.
+`<name>/press.wav` is required; optional `space.wav`. The directory name becomes the profile id and name. A pack needs a file with stem `press`, in WAV or FLAC format. Packs that collide with any catalog id or fail to decode are skipped with a warning shown in the UI.
 
 The bundled and optional sounds are real recordings from MIT-licensed packs; see `assets/CREDITS.md` for provenance and attribution.
 
