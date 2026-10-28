@@ -11,6 +11,7 @@ pub struct Manifest {
     pub total_samples: usize,
     pub keys: HashMap<u16, (usize, usize)>,
     pub defaults: Vec<(usize, usize)>,
+    pub release: Vec<(usize, usize)>,
 }
 
 #[derive(Deserialize)]
@@ -21,6 +22,8 @@ struct RawManifest {
     total_samples: usize,
     keys: HashMap<String, [usize; 2]>,
     defaults: Vec<[usize; 2]>,
+    #[serde(default)]
+    release: Vec<[usize; 2]>,
 }
 
 fn check_range(start: usize, len: usize, total: usize) -> Result<(), String> {
@@ -73,12 +76,19 @@ impl Manifest {
             defaults.push((start, len));
         }
 
+        let mut release = Vec::with_capacity(raw.release.len());
+        for [start, len] in raw.release {
+            check_range(start, len, raw.total_samples)?;
+            release.push((start, len));
+        }
+
         Ok(Manifest {
             sample_rate: raw.sample_rate,
             channels: raw.channels,
             total_samples: raw.total_samples,
             keys,
             defaults,
+            release,
         })
     }
 }
@@ -101,7 +111,9 @@ impl PlaybackClip {
 pub struct LoadedPack {
     pub keys: HashMap<u16, PlaybackClip>,
     pub defaults: Vec<PlaybackClip>,
+    pub release: Vec<PlaybackClip>,
     next_default: usize,
+    next_release: usize,
 }
 
 impl LoadedPack {
@@ -149,26 +161,35 @@ impl LoadedPack {
                 )
             })
             .collect();
-        let defaults = manifest
-            .defaults
-            .into_iter()
-            .map(|(start, len)| PlaybackClip {
-                samples: Arc::clone(&samples),
-                channels,
-                rate,
-                start,
-                len,
-            })
-            .collect();
+        let clips = |ranges: Vec<(usize, usize)>| -> Vec<PlaybackClip> {
+            ranges
+                .into_iter()
+                .map(|(start, len)| PlaybackClip {
+                    samples: Arc::clone(&samples),
+                    channels,
+                    rate,
+                    start,
+                    len,
+                })
+                .collect()
+        };
+        let defaults = clips(manifest.defaults);
+        let release = clips(manifest.release);
 
         Ok(LoadedPack {
             keys,
             defaults,
+            release,
             next_default: 0,
+            next_release: 0,
         })
     }
 
-    pub fn from_custom(press: Vec<u8>, space: Option<Vec<u8>>) -> Result<LoadedPack, String> {
+    pub fn from_custom(
+        press: Vec<u8>,
+        space: Option<Vec<u8>>,
+        release: Option<Vec<u8>>,
+    ) -> Result<LoadedPack, String> {
         let press = decode_clip(press).map_err(|e| format!("press: {e}"))?;
         let mut keys = HashMap::new();
         if let Some(bytes) = space {
@@ -176,10 +197,13 @@ impl LoadedPack {
                 keys.insert(57, clip);
             }
         }
+        let release = release.and_then(|bytes| decode_clip(bytes).ok());
         Ok(LoadedPack {
             keys,
             defaults: vec![press],
+            release: release.into_iter().collect(),
             next_default: 0,
+            next_release: 0,
         })
     }
 
@@ -194,6 +218,13 @@ impl LoadedPack {
         let clip = self.defaults[self.next_default % self.defaults.len()].clone();
         self.next_default = (self.next_default + 1) % self.defaults.len();
         clip
+    }
+
+    /// None when the pack has no release sounds.
+    pub fn next_release(&mut self) -> Option<PlaybackClip> {
+        let clip = self.release.get(self.next_release)?.clone();
+        self.next_release = (self.next_release + 1) % self.release.len();
+        Some(clip)
     }
 }
 
@@ -246,6 +277,31 @@ mod tests {
         assert_eq!(m.keys.get(&16), Some(&(0, 5)));
         assert_eq!(m.keys.get(&57), Some(&(5, 5)));
         assert_eq!(m.defaults, vec![(0, 5)]);
+        assert!(m.release.is_empty());
+    }
+
+    #[test]
+    fn parses_and_checks_release() {
+        let m = VALID.replace("\"defaults\": [[0, 5]]", "\"defaults\": [[0, 5]], \"release\": [[5, 5]]");
+        assert_eq!(parse(&m).unwrap().release, vec![(5, 5)]);
+        let bad = VALID.replace("\"defaults\": [[0, 5]]", "\"defaults\": [[0, 5]], \"release\": [[8, 5]]");
+        assert!(parse(&bad).unwrap_err().contains("exceeds"));
+    }
+
+    #[test]
+    fn release_rotates_or_is_absent() {
+        let mut pack = LoadedPack {
+            keys: HashMap::new(),
+            defaults: vec![clip(0)],
+            release: vec![],
+            next_default: 0,
+            next_release: 0,
+        };
+        assert!(pack.next_release().is_none());
+        pack.release = vec![clip(0), clip(4)];
+        assert_eq!(pack.next_release().unwrap().start, 0);
+        assert_eq!(pack.next_release().unwrap().start, 4);
+        assert_eq!(pack.next_release().unwrap().start, 0);
     }
 
     #[test]
@@ -299,7 +355,9 @@ mod tests {
         let mut pack = LoadedPack {
             keys: HashMap::new(),
             defaults: vec![clip(0), clip(4)],
+            release: vec![],
             next_default: 0,
+            next_release: 0,
         };
         assert_eq!(pack.clip_for(99).start, 0);
         assert_eq!(pack.clip_for(99).start, 4);
@@ -311,7 +369,9 @@ mod tests {
         let mut pack = LoadedPack {
             keys: HashMap::new(),
             defaults: vec![clip(0)],
+            release: vec![],
             next_default: 0,
+            next_release: 0,
         };
         pack.keys.insert(16, clip(4));
         assert_eq!(pack.clip_for(16).start, 4);

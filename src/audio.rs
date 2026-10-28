@@ -12,6 +12,7 @@ type Fetcher = fn(&Path, &str) -> Result<(), String>;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum AudioCmd {
     Sound(u16),
+    Release,
     Preview,
     Activate(usize),
     SetVolume(u8),
@@ -22,9 +23,11 @@ pub enum AudioCmd {
 fn load(profile: &Profile, packs: Option<&Path>) -> Result<LoadedPack, String> {
     match &profile.source {
         ProfileSource::Builtin { sprite, manifest } => LoadedPack::from_builtin(sprite, manifest),
-        ProfileSource::Custom { press, space } => {
-            LoadedPack::from_custom(press.clone(), space.clone())
-        }
+        ProfileSource::Custom {
+            press,
+            space,
+            release,
+        } => LoadedPack::from_custom(press.clone(), space.clone(), release.clone()),
         ProfileSource::Optional => {
             let packs = packs.ok_or_else(|| "no config directory".to_string())?;
             download::load_cached(packs, &profile.id)
@@ -231,6 +234,15 @@ impl State {
         }
     }
 
+    fn release(&mut self, stream: &rodio::OutputStream) {
+        if self.paused {
+            return;
+        }
+        if let Some(clip) = self.pack.as_mut().and_then(|p| p.next_release()) {
+            play(stream, &clip, self.volume);
+        }
+    }
+
     fn preview(&mut self, stream: &rodio::OutputStream) {
         if let Some(pack) = self.pack.as_mut() {
             let clip = pack.next_default();
@@ -283,6 +295,7 @@ fn spawn_with_fetcher(
         while let Ok(cmd) = rx.recv() {
             match cmd {
                 AudioCmd::Sound(scan_code) => state.sound(&stream, scan_code),
+                AudioCmd::Release => state.release(&stream),
                 AudioCmd::Preview => state.preview(&stream),
                 AudioCmd::Activate(i) => {
                     if state.activate(i) {
@@ -360,6 +373,7 @@ mod tests {
             source: ProfileSource::Custom {
                 press: wav,
                 space: None,
+                release: None,
             },
         };
         assert!(load(&profile, None).is_ok());

@@ -1,17 +1,19 @@
 use rdev::{EventType, Key};
 
-pub fn classify(held: &mut Vec<Key>, event: &EventType) -> Option<u16> {
+/// Returns the scan code and whether the key went down (false = released).
+pub fn classify(held: &mut Vec<Key>, event: &EventType) -> Option<(u16, bool)> {
     match event {
         EventType::KeyPress(key) => {
             if held.contains(key) {
                 return None;
             }
             held.push(*key);
-            key_to_scan_code(*key)
+            key_to_scan_code(*key).map(|code| (code, true))
         }
         EventType::KeyRelease(key) => {
-            held.retain(|k| k != key);
-            None
+            let pos = held.iter().position(|k| k == key)?;
+            held.remove(pos);
+            key_to_scan_code(*key).map(|code| (code, false))
         }
         _ => None,
     }
@@ -140,11 +142,11 @@ const HINT: &str = "could not install keyboard hook";
 #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
 const HINT: &str = "check OS permissions for global keyboard input";
 
-pub fn listen(mut on_sound: impl FnMut(u16) + 'static) -> Result<(), String> {
+pub fn listen(mut on_sound: impl FnMut(u16, bool) + 'static) -> Result<(), String> {
     let mut held: Vec<Key> = Vec::new();
     rdev::listen(move |event| {
-        if let Some(code) = classify(&mut held, &event.event_type) {
-            on_sound(code);
+        if let Some((code, down)) = classify(&mut held, &event.event_type) {
+            on_sound(code, down);
         }
     })
     .map_err(|err| format!("{err:?}: {HINT}"))
@@ -158,17 +160,19 @@ mod tests {
     #[test]
     fn classify_press_and_space() {
         let mut held = vec![];
-        assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), Some(30));
-        assert_eq!(classify(&mut held, &KeyPress(Key::Space)), Some(57));
+        assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), Some((30, true)));
+        assert_eq!(classify(&mut held, &KeyPress(Key::Space)), Some((57, true)));
+        assert_eq!(classify(&mut held, &KeyRelease(Key::Space)), Some((57, false)));
     }
 
     #[test]
     fn classify_ignores_auto_repeat() {
         let mut held = vec![];
-        assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), Some(30));
+        assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), Some((30, true)));
         assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), None);
+        assert_eq!(classify(&mut held, &KeyRelease(Key::KeyA)), Some((30, false)));
         assert_eq!(classify(&mut held, &KeyRelease(Key::KeyA)), None);
-        assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), Some(30));
+        assert_eq!(classify(&mut held, &KeyPress(Key::KeyA)), Some((30, true)));
     }
 
     #[test]

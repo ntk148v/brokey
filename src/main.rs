@@ -70,8 +70,13 @@ fn main() {
         std::process::exit(code);
     });
 
-    if let Err(e) = listener::listen(move |k| {
-        let _ = audio_tx.send(audio::AudioCmd::Sound(k));
+    if let Err(e) = listener::listen(move |k, down| {
+        let cmd = if down {
+            audio::AudioCmd::Sound(k)
+        } else {
+            audio::AudioCmd::Release
+        };
+        let _ = audio_tx.send(cmd);
     }) {
         // rdev cannot be restarted, so keep the TUI alive: it shows the reason
         // and the user quits with q. The UI thread terminates the process,

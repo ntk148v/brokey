@@ -12,6 +12,7 @@ pub enum ProfileSource {
     Custom {
         press: Vec<u8>,
         space: Option<Vec<u8>>,
+        release: Option<Vec<u8>>,
     },
 }
 
@@ -178,18 +179,21 @@ pub fn load_user(dir: &Path) -> (Vec<Profile>, Vec<String>) {
             }
         };
 
-        let mut space_cands: Vec<std::path::PathBuf> = pack_entries
-            .iter()
-            .filter(|pp| pp.file_stem().and_then(|s| s.to_str()) == Some("space"))
-            .cloned()
-            .collect();
-        space_cands.sort_by(|a, b| a.to_string_lossy().cmp(&b.to_string_lossy()));
-        let space_bytes = space_cands
-            .first()
-            .and_then(|sp| fs::read(sp).ok())
-            .filter(|b| LoadedPack::from_custom(b.clone(), None).is_ok());
+        let optional_clip = |stem: &str| {
+            let mut cands: Vec<&std::path::PathBuf> = pack_entries
+                .iter()
+                .filter(|pp| pp.file_stem().and_then(|s| s.to_str()) == Some(stem))
+                .collect();
+            cands.sort_by(|a, b| a.to_string_lossy().cmp(&b.to_string_lossy()));
+            cands
+                .first()
+                .and_then(|sp| fs::read(sp).ok())
+                .filter(|b| LoadedPack::from_custom(b.clone(), None, None).is_ok())
+        };
+        let space_bytes = optional_clip("space");
+        let release_bytes = optional_clip("release");
 
-        if let Err(e) = LoadedPack::from_custom(press_bytes.clone(), space_bytes.clone()) {
+        if let Err(e) = LoadedPack::from_custom(press_bytes.clone(), space_bytes.clone(), None) {
             warnings.push(format!("Skipped sound pack '{}': {}", id, e));
             continue;
         }
@@ -200,6 +204,7 @@ pub fn load_user(dir: &Path) -> (Vec<Profile>, Vec<String>) {
             source: ProfileSource::Custom {
                 press: press_bytes,
                 space: space_bytes,
+                release: release_bytes,
             },
         });
     }
@@ -399,6 +404,23 @@ pub(crate) mod tests {
             ProfileSource::Custom { space: Some(_), .. }
         ));
         assert!(warns.is_empty());
+    }
+
+    #[test]
+    fn user_pack_maps_release() {
+        let td = tempdir().unwrap();
+        let pack = td.path().join("mine");
+        fs::create_dir_all(&pack).unwrap();
+        fs::write(pack.join("press.wav"), wav_bytes(&[0, 1000, -1000, 0])).unwrap();
+        fs::write(pack.join("release.wav"), wav_bytes(&[0, 500, -500, 0])).unwrap();
+        let (ps, warns) = load_user(td.path());
+        assert!(warns.is_empty(), "{warns:?}");
+        let ProfileSource::Custom { press, space, release } = &ps[0].source else {
+            panic!("not a custom pack");
+        };
+        let mut loaded =
+            LoadedPack::from_custom(press.clone(), space.clone(), release.clone()).unwrap();
+        assert!(loaded.next_release().is_some());
     }
 
     #[test]
