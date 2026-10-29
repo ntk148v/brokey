@@ -86,6 +86,12 @@ pub fn on_key(app: &mut App, code: KeyCode, mods: KeyModifiers) -> Option<AudioC
             }
             Some(AudioCmd::Activate(app.cursor))
         }
+        KeyCode::Char('d') | KeyCode::Delete => {
+            if app.profiles.is_empty() {
+                return None;
+            }
+            Some(AudioCmd::Delete(app.cursor))
+        }
         KeyCode::Left | KeyCode::Char('-') => {
             let old = app.volume;
             app.volume = app.volume.saturating_sub(10);
@@ -166,6 +172,14 @@ impl App {
                     entry.downloading = false;
                 }
                 self.notice = Some(format!("Downloaded {name}"));
+                false
+            }
+            Notice::Deleted(id) => {
+                let name = self.name_of(&id);
+                if let Some(entry) = self.profiles.iter_mut().find(|p| p.id == id) {
+                    entry.available = false;
+                }
+                self.notice = Some(format!("Deleted {name}"));
                 false
             }
             Notice::DownloadFailed { id, error } => {
@@ -348,9 +362,11 @@ pub fn draw(frame: &mut ratatui::Frame, app: &App) {
         frame.render_widget(empty, chunks[4]);
     }
 
-    let footer = Paragraph::new("↑↓ browse  enter load  ←→ volume  space pause  p preview  q quit")
-        .alignment(Alignment::Center)
-        .style(Style::default().fg(Color::Reset));
+    let footer = Paragraph::new(
+        "↑↓ browse  enter load  d delete  ←→ volume  space pause  p preview  q quit",
+    )
+    .alignment(Alignment::Center)
+    .style(Style::default().fg(Color::Reset));
     frame.render_widget(footer, chunks[5]);
 }
 
@@ -749,5 +765,30 @@ mod tests {
         assert!(text.contains("Cherry MX Red (ABS)"));
         assert!(text.contains("Cherry MX Brown (ABS)"));
         assert!(text.contains("Topre"));
+    }
+
+    #[test]
+    fn d_sends_delete_for_cursor() {
+        let mut a = app();
+        a.cursor = 2;
+        assert_eq!(
+            on_key(&mut a, KeyCode::Char('d'), KeyModifiers::NONE),
+            Some(AudioCmd::Delete(2))
+        );
+        assert_eq!(
+            on_key(&mut a, KeyCode::Delete, KeyModifiers::NONE),
+            Some(AudioCmd::Delete(2))
+        );
+    }
+
+    #[test]
+    fn deleted_notice_marks_pack_not_downloaded() {
+        let mut a = app();
+        let id = a.profiles[0].id.clone();
+        a.profiles[0].optional = true;
+        a.profiles[0].available = true;
+        assert!(!on_notice(&mut a, Notice::Deleted(id)));
+        assert!(!a.profiles[0].available);
+        assert!(a.notice.as_ref().unwrap().contains("Deleted"));
     }
 }

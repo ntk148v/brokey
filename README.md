@@ -34,6 +34,7 @@ sudo apt install libasound2-dev libx11-dev libxtst-dev
 | `↑` / `k`            | Move cursor up (does not change the sound)  |
 | `↓` / `j`            | Move cursor down (does not change the sound)|
 | `Enter`              | Load the cursor profile; downloads it first if optional |
+| `d` / `Delete`       | Delete the downloaded optional pack under the cursor |
 | `←` / `-`            | Volume −10% (0–100)                         |
 | `→` / `+` / `=`      | Volume +10% (0–100)                         |
 | `Space`              | Pause/resume                                |
@@ -75,6 +76,11 @@ downloaded, `Enter` downloads it from this repository's
 `<config dir>/brokey/packs/<id>/`. Rows that are not downloaded show a `↓`
 marker; a download in progress shows `…`. Until a download finishes, the
 previous pack keeps playing.
+
+`d` (or `Delete`) removes a downloaded optional pack from the cache. If it is
+playing, brokey switches to the first embedded pack. Embedded packs and packs
+in `sounds/` cannot be deleted this way; remove a custom pack by deleting its
+folder. `Enter` downloads a deleted pack again.
 
 A saved optional profile that is not cached falls back to the first embedded
 pack at startup instead of downloading silently; the cursor stays on the saved

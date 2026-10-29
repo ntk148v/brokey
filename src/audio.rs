@@ -15,6 +15,7 @@ pub enum AudioCmd {
     Release,
     Preview,
     Activate(usize),
+    Delete(usize),
     SetVolume(u8),
     SetPaused(bool),
     PackInstalled { index: usize, ok: bool },
@@ -44,6 +45,7 @@ struct State {
     volume: u8,
     paused: bool,
     pack: Option<LoadedPack>,
+    active: Option<usize>,
     downloading: Option<String>,
     fetch: Fetcher,
 }
@@ -65,6 +67,7 @@ impl State {
             volume,
             paused: false,
             pack: None,
+            active: None,
             downloading: None,
             fetch,
         }
@@ -90,6 +93,7 @@ impl State {
         match load(&self.profiles[saved], self.packs_dir.as_deref()) {
             Ok(pack) => {
                 self.pack = Some(pack);
+                self.active = Some(saved);
                 let _ = self.notices.send(Notice::Activated {
                     index: saved,
                     user: false,
@@ -113,6 +117,7 @@ impl State {
         match load(&self.profiles[index], self.packs_dir.as_deref()) {
             Ok(pack) => {
                 self.pack = Some(pack);
+                self.active = Some(index);
                 let _ = self.notices.send(Notice::Activated { index, user: false });
             }
             Err(e) => self.warn(format!("Could not load fallback '{name}': {e}")),
@@ -143,6 +148,7 @@ impl State {
         match load(&self.profiles[index], self.packs_dir.as_deref()) {
             Ok(pack) => {
                 self.pack = Some(pack);
+                self.active = Some(index);
                 let _ = self.notices.send(Notice::Activated { index, user: true });
                 true
             }
@@ -159,6 +165,43 @@ impl State {
                 }
                 false
             }
+        }
+    }
+
+    /// Removes a downloaded optional pack from disk. If it is playing,
+    /// switches to the first embedded pack.
+    fn delete(&mut self, index: usize) {
+        let Some(profile) = self.profiles.get(index) else {
+            self.warn(format!("Profile {index} not found"));
+            return;
+        };
+        let name = profile.name.clone();
+        let id = profile.id.clone();
+        if !profile.is_optional() {
+            self.warn(format!("Only downloaded packs can be deleted: {name}"));
+            return;
+        }
+        let Some(packs) = self.packs_dir.clone() else {
+            self.warn("no config directory".to_string());
+            return;
+        };
+        if self.downloading.as_deref() == Some(id.as_str()) {
+            self.warn(format!("Download in progress: {name}"));
+            return;
+        }
+        if !download::is_installed(&packs, &id) {
+            self.warn(format!("'{name}' is not downloaded"));
+            return;
+        }
+        if let Err(e) = std::fs::remove_dir_all(download::cache_dir(&packs, &id)) {
+            self.warn(format!("Could not delete '{name}': {e}"));
+            return;
+        }
+        let _ = self.notices.send(Notice::Deleted(id));
+        if self.active == Some(index) {
+            self.pack = None;
+            self.active = None;
+            self.fallback(format!("Deleted '{name}'; using the default pack"));
         }
     }
 
@@ -188,6 +231,7 @@ impl State {
         {
             Some(pack) => {
                 self.pack = Some(pack);
+                self.active = Some(index);
                 let _ = self.notices.send(Notice::Activated { index, user: true });
                 true
             }
@@ -303,6 +347,7 @@ fn spawn_with_fetcher(
                         state.preview(&stream);
                     }
                 }
+                AudioCmd::Delete(i) => state.delete(i),
                 AudioCmd::SetVolume(v) => state.volume = v,
                 AudioCmd::SetPaused(p) => state.paused = p,
                 AudioCmd::PackInstalled { index, ok } => {
@@ -566,5 +611,59 @@ mod tests {
         assert!(!st.installed(idx, false));
         assert!(st.pack.is_some());
         assert!(st.downloading.is_none());
+    }
+
+    #[test]
+    fn delete_removes_cache_and_notifies() {
+        let (td, profiles, idx) = state_fixture();
+        let (mut st, nrx) = state(profiles, td.path(), ok_fetch);
+        st.start(0);
+        let _ = nrx.try_recv();
+        st.delete(idx);
+        assert!(!crate::download::is_installed(td.path(), "holy-panda"));
+        assert!(matches!(nrx.try_recv(), Ok(crate::Notice::Deleted(id)) if id == "holy-panda"));
+        assert!(st.pack.is_some());
+        assert_eq!(st.active, Some(0));
+    }
+
+    #[test]
+    fn delete_active_pack_falls_back_to_embedded() {
+        let (td, profiles, idx) = state_fixture();
+        let (mut st, nrx) = state(profiles, td.path(), ok_fetch);
+        st.start(idx);
+        assert_eq!(st.active, Some(idx));
+        while nrx.try_recv().is_ok() {}
+        st.delete(idx);
+        assert!(!crate::download::is_installed(td.path(), "holy-panda"));
+        assert!(st.pack.is_some());
+        assert_eq!(st.active, Some(0));
+        assert!(matches!(nrx.try_recv(), Ok(crate::Notice::Deleted(_))));
+        assert!(matches!(nrx.try_recv(), Ok(crate::Notice::Warn(_))));
+        assert!(matches!(
+            nrx.try_recv(),
+            Ok(crate::Notice::Activated {
+                index: 0,
+                user: false
+            })
+        ));
+    }
+
+    #[test]
+    fn delete_embedded_is_rejected() {
+        let td = tempdir().unwrap();
+        let (profiles, _) = crate::profiles::all(None);
+        let (mut st, nrx) = state(profiles, td.path(), ok_fetch);
+        st.delete(0);
+        assert!(matches!(nrx.try_recv(), Ok(crate::Notice::Warn(_))));
+    }
+
+    #[test]
+    fn delete_not_downloaded_is_rejected() {
+        let td = tempdir().unwrap();
+        let (profiles, _) = crate::profiles::all(None);
+        let idx = profiles.iter().position(|p| p.id == "holy-panda").unwrap();
+        let (mut st, nrx) = state(profiles, td.path(), ok_fetch);
+        st.delete(idx);
+        assert!(matches!(nrx.try_recv(), Ok(crate::Notice::Warn(_))));
     }
 }

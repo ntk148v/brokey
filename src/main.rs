@@ -16,6 +16,7 @@ pub enum Notice {
     Downloading(String),
     Downloaded(String),
     DownloadFailed { id: String, error: String },
+    Deleted(String),
     Activated { index: usize, user: bool },
 }
 
