@@ -8,6 +8,21 @@ Brokey plays mechanical-switch sounds on every global keypress, with a small ter
 
 ## Install / run
 
+### Download release binaries
+
+Download the binary for your platform from the [releases page](https://github.com/ntk148v/brokey/releases), extract it, and run:
+
+```bash
+# Linux / macOS
+chmod +x brokey
+./brokey
+
+# Windows
+brokey.exe
+```
+
+### Build from source
+
 ```bash
 cargo install --path .
 cargo run --release
