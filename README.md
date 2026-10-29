@@ -29,17 +29,17 @@ sudo apt install libasound2-dev libx11-dev libxtst-dev
 
 ## Keys
 
-| Key                  | Action                                      |
-| -------------------- | ------------------------------------------- |
-| `↑` / `k`            | Move cursor up (does not change the sound)  |
-| `↓` / `j`            | Move cursor down (does not change the sound)|
+| Key                  | Action                                                  |
+| -------------------- | ------------------------------------------------------- |
+| `↑` / `k`            | Move cursor up (does not change the sound)              |
+| `↓` / `j`            | Move cursor down (does not change the sound)            |
 | `Enter`              | Load the cursor profile; downloads it first if optional |
-| `d` / `Delete`       | Delete the downloaded optional pack under the cursor |
-| `←` / `-`            | Volume −10% (0–100)                         |
-| `→` / `+` / `=`      | Volume +10% (0–100)                         |
-| `Space`              | Pause/resume                                |
-| `p`                  | Preview the active profile                  |
-| `q`, `Esc`, `Ctrl-C` | Quit                                        |
+| `d` / `Delete`       | Delete the downloaded optional pack under the cursor    |
+| `←` / `-`            | Volume −10% (0–100)                                     |
+| `→` / `+` / `=`      | Volume +10% (0–100)                                     |
+| `Space`              | Pause/resume                                            |
+| `p`                  | Preview the active profile                              |
+| `q`, `Esc`, `Ctrl-C` | Quit                                                    |
 
 ## Config
 

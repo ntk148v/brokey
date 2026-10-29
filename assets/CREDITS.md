@@ -20,26 +20,26 @@ normal builds do not need ffmpeg or network access.
 
 ## Sources
 
-| Directory | Set | Switch | Source pack | Author | License |
-| --- | --- | --- | --- | --- | --- |
-| `mx-blue` | default | Cherry MX Blue (ABS) | [`cherrymx-blue-abs`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-blue-abs) | Connor Langan / MechVibes | MIT |
-| `mx-red` | default | Cherry MX Red (ABS) | [`cherrymx-red-abs`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-red-abs) | Connor Langan / MechVibes | MIT |
-| `mx-brown` | default | Cherry MX Brown (ABS) | [`cherrymx-brown-abs`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-brown-abs) | Connor Langan / MechVibes | MIT |
-| `topre` | default | Topre Purple Hybrid (PBT) | [`topre-purple-hybrid-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/topre-purple-hybrid-pbt) | Connor Langan / MechVibes | MIT |
-| `mx-black` | optional | Cherry MX Black (PBT) | [`cherrymx-black-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-black-pbt) | Connor Langan / MechVibes | MIT |
-| `mx-black-abs` | optional | Cherry MX Black (ABS) | [`cherrymx-black-abs`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-black-abs) | Connor Langan / MechVibes | MIT |
-| `mx-blue-pbt` | optional | Cherry MX Blue (PBT) | [`cherrymx-blue-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-blue-pbt) | Connor Langan / MechVibes | MIT |
-| `mx-red-pbt` | optional | Cherry MX Red (PBT) | [`cherrymx-red-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-red-pbt) | Connor Langan / MechVibes | MIT |
-| `mx-brown-pbt` | optional | Cherry MX Brown (PBT) | [`cherrymx-brown-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-brown-pbt) | Connor Langan / MechVibes | MIT |
-| `holy-panda` | optional | Holy Panda | [`holy-pandas`](https://github.com/cjlangan/MechSim/tree/main/audio/holy-pandas) | Connor Langan / MechVibes | MIT |
-| `nk-cream` | optional | NK Cream | [`nk-cream`](https://github.com/cjlangan/MechSim/tree/main/audio/nk-cream) | Connor Langan / MechVibes | MIT |
-| `eg-oreo` | optional | Everglide Oreo | [`eg-oreo`](https://github.com/cjlangan/MechSim/tree/main/audio/eg-oreo) | Connor Langan / MechVibes | MIT |
-| `eg-crystal-purple` | optional | Everglide Crystal Purple | [`eg-crystal-purple`](https://github.com/cjlangan/MechSim/tree/main/audio/eg-crystal-purple) | Connor Langan / MechVibes | MIT |
-| `turquoise` | optional | Turquoise Tealios | [`turquoise`](https://github.com/cjlangan/MechSim/tree/main/audio/turquoise) | Connor Langan / MechVibes | MIT |
-| `cream-travel` | optional | Cream (Full Travel) | [`cream-travel`](https://github.com/cjlangan/MechSim/tree/main/audio/cream-travel) | Connor Langan / MechVibes | MIT |
-| `mx-black-travel` | optional | Cherry MX Black (Full Travel) | [`mxblack-travel`](https://github.com/cjlangan/MechSim/tree/main/audio/mxblack-travel) | Connor Langan / MechVibes | MIT |
-| `mx-blue-travel` | optional | Cherry MX Blue (Full Travel) | [`mxblue-travel`](https://github.com/cjlangan/MechSim/tree/main/audio/mxblue-travel) | Connor Langan / MechVibes | MIT |
-| `mx-brown-travel` | optional | Cherry MX Brown (Full Travel) | [`mxbrown-travel`](https://github.com/cjlangan/MechSim/tree/main/audio/mxbrown-travel) | Connor Langan / MechVibes | MIT |
+| Directory           | Set      | Switch                        | Source pack                                                                                              | Author                    | License |
+| ------------------- | -------- | ----------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------- | ------- |
+| `mx-blue`           | default  | Cherry MX Blue (ABS)          | [`cherrymx-blue-abs`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-blue-abs)             | Connor Langan / MechVibes | MIT     |
+| `mx-red`            | default  | Cherry MX Red (ABS)           | [`cherrymx-red-abs`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-red-abs)               | Connor Langan / MechVibes | MIT     |
+| `mx-brown`          | default  | Cherry MX Brown (ABS)         | [`cherrymx-brown-abs`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-brown-abs)           | Connor Langan / MechVibes | MIT     |
+| `topre`             | default  | Topre Purple Hybrid (PBT)     | [`topre-purple-hybrid-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/topre-purple-hybrid-pbt) | Connor Langan / MechVibes | MIT     |
+| `mx-black`          | optional | Cherry MX Black (PBT)         | [`cherrymx-black-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-black-pbt)           | Connor Langan / MechVibes | MIT     |
+| `mx-black-abs`      | optional | Cherry MX Black (ABS)         | [`cherrymx-black-abs`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-black-abs)           | Connor Langan / MechVibes | MIT     |
+| `mx-blue-pbt`       | optional | Cherry MX Blue (PBT)          | [`cherrymx-blue-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-blue-pbt)             | Connor Langan / MechVibes | MIT     |
+| `mx-red-pbt`        | optional | Cherry MX Red (PBT)           | [`cherrymx-red-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-red-pbt)               | Connor Langan / MechVibes | MIT     |
+| `mx-brown-pbt`      | optional | Cherry MX Brown (PBT)         | [`cherrymx-brown-pbt`](https://github.com/cjlangan/MechSim/tree/main/audio/cherrymx-brown-pbt)           | Connor Langan / MechVibes | MIT     |
+| `holy-panda`        | optional | Holy Panda                    | [`holy-pandas`](https://github.com/cjlangan/MechSim/tree/main/audio/holy-pandas)                         | Connor Langan / MechVibes | MIT     |
+| `nk-cream`          | optional | NK Cream                      | [`nk-cream`](https://github.com/cjlangan/MechSim/tree/main/audio/nk-cream)                               | Connor Langan / MechVibes | MIT     |
+| `eg-oreo`           | optional | Everglide Oreo                | [`eg-oreo`](https://github.com/cjlangan/MechSim/tree/main/audio/eg-oreo)                                 | Connor Langan / MechVibes | MIT     |
+| `eg-crystal-purple` | optional | Everglide Crystal Purple      | [`eg-crystal-purple`](https://github.com/cjlangan/MechSim/tree/main/audio/eg-crystal-purple)             | Connor Langan / MechVibes | MIT     |
+| `turquoise`         | optional | Turquoise Tealios             | [`turquoise`](https://github.com/cjlangan/MechSim/tree/main/audio/turquoise)                             | Connor Langan / MechVibes | MIT     |
+| `cream-travel`      | optional | Cream (Full Travel)           | [`cream-travel`](https://github.com/cjlangan/MechSim/tree/main/audio/cream-travel)                       | Connor Langan / MechVibes | MIT     |
+| `mx-black-travel`   | optional | Cherry MX Black (Full Travel) | [`mxblack-travel`](https://github.com/cjlangan/MechSim/tree/main/audio/mxblack-travel)                   | Connor Langan / MechVibes | MIT     |
+| `mx-blue-travel`    | optional | Cherry MX Blue (Full Travel)  | [`mxblue-travel`](https://github.com/cjlangan/MechSim/tree/main/audio/mxblue-travel)                     | Connor Langan / MechVibes | MIT     |
+| `mx-brown-travel`   | optional | Cherry MX Brown (Full Travel) | [`mxbrown-travel`](https://github.com/cjlangan/MechSim/tree/main/audio/mxbrown-travel)                   | Connor Langan / MechVibes | MIT     |
 
 `mx-black-abs` is the same Cherry MX Black ABS recording that MechVibes distributes;
 MechSim's copy is byte-identical. MechSim took its audio and frame maps from
